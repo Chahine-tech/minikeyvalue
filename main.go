@@ -2,10 +2,16 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
 	"time"
+)
+
+var (
+	ErrKeyNotExist      = errors.New("key does not exist")
+	ErrKeyAlreadyExists = errors.New("key already exists")
 )
 
 // KeyValueStore is an advanced thread-safe in-memory key-value store with persistence and TTL
@@ -33,27 +39,30 @@ func NewKeyValueStore(persistenceFile string) *KeyValueStore {
 }
 
 // Set sets a key-value pair in the store with an optional TTL
-func (kv *KeyValueStore) Set(key, value string, ttl time.Duration) {
+func (kv *KeyValueStore) Set(key, value string, ttl time.Duration) error {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
+	if _, exists := kv.store[key]; exists {
+		return ErrKeyAlreadyExists
+	}
 	expiration := int64(0)
 	if ttl > 0 {
 		expiration = time.Now().Add(ttl).Unix()
 	}
 	kv.store[key] = Item{Value: value, Expiration: expiration}
 	kv.saveToDisk()
-	fmt.Printf("Set key %s with value %s and TTL %v\n", key, value, ttl)
+	return nil
 }
 
 // Get retrieves a value by key from the store
-func (kv *KeyValueStore) Get(key string) (string, bool) {
+func (kv *KeyValueStore) Get(key string) (string, error) {
 	kv.mu.RLock()
 	defer kv.mu.RUnlock()
 	item, exists := kv.store[key]
 	if !exists || (item.Expiration > 0 && item.Expiration < time.Now().Unix()) {
-		return "", false
+		return "", ErrKeyNotExist
 	}
-	return item.Value, true
+	return item.Value, nil
 }
 
 // Delete removes a key-value pair from the store
@@ -126,7 +135,8 @@ func main() {
 	kv.Set("session", "xyz123", 5*time.Second)
 
 	// Getting a value
-	if name, exists := kv.Get("name"); exists {
+	name, err := kv.Get("name")
+	if err == nil {
 		fmt.Println("Name:", name)
 	} else {
 		fmt.Println("Name key does not exist")
@@ -135,7 +145,8 @@ func main() {
 	// Trying to get a key with TTL
 	fmt.Println("Waiting for 6 seconds...")
 	time.Sleep(6 * time.Second)
-	if session, exists := kv.Get("session"); exists {
+	session, err := kv.Get("session")
+	if err == nil {
 		fmt.Println("Session:", session)
 	} else {
 		fmt.Println("Session key has expired or does not exist")
@@ -145,7 +156,8 @@ func main() {
 	kv.Delete("name")
 
 	// Trying to get a deleted key
-	if name, exists := kv.Get("name"); exists {
+	name, err = kv.Get("name")
+	if err == nil {
 		fmt.Println("Name:", name)
 	} else {
 		fmt.Println("Name key does not exist")
