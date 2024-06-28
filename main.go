@@ -16,8 +16,7 @@ var (
 
 // KeyValueStore is an advanced thread-safe in-memory key-value store with persistence and TTL
 type KeyValueStore struct {
-	store           map[string]Item
-	mu              sync.RWMutex
+	store           sync.Map
 	persistenceFile string
 }
 
@@ -30,7 +29,6 @@ type Item struct {
 // NewKeyValueStore creates a new KeyValueStore with persistence
 func NewKeyValueStore(persistenceFile string) *KeyValueStore {
 	kv := &KeyValueStore{
-		store:           make(map[string]Item),
 		persistenceFile: persistenceFile,
 	}
 	kv.loadFromDisk()
@@ -40,51 +38,60 @@ func NewKeyValueStore(persistenceFile string) *KeyValueStore {
 
 // Set sets a key-value pair in the store with an optional TTL
 func (kv *KeyValueStore) Set(key, value string, ttl time.Duration) error {
-	kv.mu.Lock()
-	defer kv.mu.Unlock()
-	if _, exists := kv.store[key]; exists {
+	_, exists := kv.store.Load(key)
+	if exists {
 		return ErrKeyAlreadyExists
 	}
 	expiration := int64(0)
 	if ttl > 0 {
 		expiration = time.Now().Add(ttl).Unix()
 	}
-	kv.store[key] = Item{Value: value, Expiration: expiration}
-	kv.saveToDisk()
+	kv.store.Store(key, Item{Value: value, Expiration: expiration})
+	if err := kv.saveToDisk(); err != nil {
+		return fmt.Errorf("error saving to disk: %w", err)
+	}
 	return nil
 }
 
 // Get retrieves a value by key from the store
 func (kv *KeyValueStore) Get(key string) (string, error) {
-	kv.mu.RLock()
-	defer kv.mu.RUnlock()
-	item, exists := kv.store[key]
-	if !exists || (item.Expiration > 0 && item.Expiration < time.Now().Unix()) {
+	item, exists := kv.store.Load(key)
+	if !exists {
 		return "", ErrKeyNotExist
 	}
-	return item.Value, nil
+	it := item.(Item)
+	if it.Expiration > 0 && it.Expiration < time.Now().Unix() {
+		kv.store.Delete(key)
+		if err := kv.saveToDisk(); err != nil {
+			fmt.Printf("error saving to disk: %v\n", err)
+		}
+		return "", ErrKeyNotExist
+	}
+	return it.Value, nil
 }
 
 // Delete removes a key-value pair from the store
-func (kv *KeyValueStore) Delete(key string) {
-	kv.mu.Lock()
-	defer kv.mu.Unlock()
-	delete(kv.store, key)
-	kv.saveToDisk()
+func (kv *KeyValueStore) Delete(key string) error {
+	kv.store.Delete(key)
+	if err := kv.saveToDisk(); err != nil {
+		return fmt.Errorf("error saving to disk: %w", err)
+	}
 	fmt.Printf("Deleted key %s\n", key)
+	return nil
 }
 
 // saveToDisk persists the store to disk
-func (kv *KeyValueStore) saveToDisk() {
-	data, err := json.Marshal(kv.store)
+func (kv *KeyValueStore) saveToDisk() error {
+	data := make(map[string]Item)
+	kv.store.Range(func(key, value interface{}) bool {
+		data[key.(string)] = value.(Item)
+		return true
+	})
+	bytes, err := json.Marshal(data)
 	if err != nil {
-		fmt.Println("Error saving to disk:", err)
-		return
+		return err
 	}
-	err = os.WriteFile(kv.persistenceFile, data, 0644)
-	if err != nil {
-		fmt.Println("Error saving to disk:", err)
-	}
+	return os.WriteFile(kv.persistenceFile, bytes, 0644)
 }
 
 // loadFromDisk loads the store from disk
@@ -106,24 +113,38 @@ func (kv *KeyValueStore) loadFromDisk() {
 		fmt.Println("Error loading from disk:", err)
 		return
 	}
-	err = json.Unmarshal(data, &kv.store)
+	var items map[string]Item
+	err = json.Unmarshal(data, &items)
 	if err != nil {
 		fmt.Println("Error loading from disk:", err)
+		return
+	}
+	for key, item := range items {
+		kv.store.Store(key, item)
 	}
 }
 
 // cleanupExpiredItems periodically removes expired items from the store
 func (kv *KeyValueStore) cleanupExpiredItems() {
-	for {
-		time.Sleep(1 * time.Minute)
-		kv.mu.Lock()
-		now := time.Now().Unix()
-		for key, item := range kv.store {
-			if item.Expiration > 0 && item.Expiration < now {
-				delete(kv.store, key)
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		expiredKeys := make([]string, 0)
+		kv.store.Range(func(key, value interface{}) bool {
+			item := value.(Item)
+			if item.Expiration > 0 && item.Expiration < time.Now().Unix() {
+				expiredKeys = append(expiredKeys, key.(string))
+			}
+			return true
+		})
+		for _, key := range expiredKeys {
+			kv.store.Delete(key)
+		}
+		if len(expiredKeys) > 0 {
+			if err := kv.saveToDisk(); err != nil {
+				fmt.Printf("error saving to disk during cleanup: %v\n", err)
 			}
 		}
-		kv.mu.Unlock()
 	}
 }
 

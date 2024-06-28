@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 )
@@ -39,7 +41,9 @@ func TestKeyValueStore(t *testing.T) {
 	}
 
 	// Test deleting a key
-	kv.Delete("name")
+	if err := kv.Delete("name"); err != nil {
+		t.Errorf("error deleting key 'name': %v", err)
+	}
 	if _, err = kv.Get("name"); err == nil {
 		t.Errorf("expected 'name' key to be deleted")
 	}
@@ -68,5 +72,42 @@ func TestCleanupExpiredItems(t *testing.T) {
 
 	if _, err := kv.Get("temp"); err == nil {
 		t.Errorf("expected 'temp' key to have expired")
+	}
+}
+
+func TestKeyValueStoreConcurrency(t *testing.T) {
+	const persistenceFile = "test_kvstore_concurrency.json"
+	os.Remove(persistenceFile)
+	defer os.Remove(persistenceFile)
+
+	kv := NewKeyValueStore(persistenceFile)
+	var wg sync.WaitGroup
+
+	// Test concurrent writes
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			kv.Set(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i), 0)
+		}(i)
+	}
+
+	// Test concurrent reads
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			kv.Get(fmt.Sprintf("key%d", i))
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify all keys
+	for i := 0; i < 100; i++ {
+		value, err := kv.Get(fmt.Sprintf("key%d", i))
+		if err != nil || value != fmt.Sprintf("value%d", i) {
+			t.Errorf("expected value 'value%d', got '%s'", i, value)
+		}
 	}
 }
