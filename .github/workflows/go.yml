@@ -11,13 +11,16 @@ jobs:
     name: Setup
     runs-on: ubuntu-latest
     outputs:
-      go-version: "1.22.1"
+      go-version: ${{ steps.set-go-version.outputs.go-version }}
     steps:
       - name: Set up Go
-        id: setup-go
+        id: set-go-version
         uses: actions/setup-go@v4
         with:
           go-version: "1.22.1"
+      - name: Save Go version
+        id: save-go-version
+        run: echo "go-version=1.22.1" >> $GITHUB_ENV
 
   build:
     name: Build
@@ -30,7 +33,7 @@ jobs:
       - name: Use Go
         uses: actions/setup-go@v4
         with:
-          go-version: ${{ needs.setup.outputs.go-version }}
+          go-version: ${{ env.go-version }}
 
       - name: Build
         run: go build -v ./...
@@ -46,7 +49,7 @@ jobs:
       - name: Use Go
         uses: actions/setup-go@v4
         with:
-          go-version: ${{ needs.setup.outputs.go-version }}
+          go-version: ${{ env.go-version }}
 
       - name: Test
         run: go test -coverprofile=coverage.out -v ./...
@@ -62,7 +65,7 @@ jobs:
       - name: Use Go
         uses: actions/setup-go@v4
         with:
-          go-version: ${{ needs.setup.outputs.go-version }}
+          go-version: ${{ env.go-version }}
 
       - name: Install golangci-lint
         run: |
@@ -82,7 +85,7 @@ jobs:
       - name: Use Go
         uses: actions/setup-go@v4
         with:
-          go-version: ${{ needs.setup.outputs.go-version }}
+          go-version: ${{ env.go-version }}
 
       - name: Check formatting
         run: gofmt -d .
