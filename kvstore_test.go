@@ -88,26 +88,40 @@ func TestKeyValueStoreConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			kv.Set(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i), 0)
+			if err := kv.Set(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i), 0); err != nil {
+				t.Errorf("error setting key 'key%d': %v", i, err)
+			}
 		}(i)
 	}
+
+	// Wait for all writes to complete
+	wg.Wait()
+
+	// Adding a short delay to ensure all writes are complete
+	time.Sleep(100 * time.Millisecond)
 
 	// Test concurrent reads
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			kv.Get(fmt.Sprintf("key%d", i))
+			value, err := kv.Get(fmt.Sprintf("key%d", i))
+			if err != nil {
+				t.Errorf("error getting key 'key%d': %v", i, err)
+			} else if value != fmt.Sprintf("value%d", i) {
+				t.Errorf("expected value 'value%d', got '%s'", i, value)
+			}
 		}(i)
 	}
 
+	// Wait for all reads to complete
 	wg.Wait()
 
 	// Verify all keys
 	for i := 0; i < 100; i++ {
 		value, err := kv.Get(fmt.Sprintf("key%d", i))
 		if err != nil || value != fmt.Sprintf("value%d", i) {
-			t.Errorf("expected value 'value%d', got '%s'", i, value)
+			t.Errorf("expected value 'value%d', got '%s' (error: %v)", i, value, err)
 		}
 	}
 }

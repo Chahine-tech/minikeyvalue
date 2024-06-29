@@ -47,9 +47,7 @@ func (kv *KeyValueStore) Set(key, value string, ttl time.Duration) error {
 		expiration = time.Now().Add(ttl).Unix()
 	}
 	kv.store.Store(key, Item{Value: value, Expiration: expiration})
-	if err := kv.saveToDisk(); err != nil {
-		return fmt.Errorf("error saving to disk: %w", err)
-	}
+	kv.saveToDisk()
 	return nil
 }
 
@@ -61,10 +59,6 @@ func (kv *KeyValueStore) Get(key string) (string, error) {
 	}
 	it := item.(Item)
 	if it.Expiration > 0 && it.Expiration < time.Now().Unix() {
-		kv.store.Delete(key)
-		if err := kv.saveToDisk(); err != nil {
-			fmt.Printf("error saving to disk: %v\n", err)
-		}
 		return "", ErrKeyNotExist
 	}
 	return it.Value, nil
@@ -73,15 +67,13 @@ func (kv *KeyValueStore) Get(key string) (string, error) {
 // Delete removes a key-value pair from the store
 func (kv *KeyValueStore) Delete(key string) error {
 	kv.store.Delete(key)
-	if err := kv.saveToDisk(); err != nil {
-		return fmt.Errorf("error saving to disk: %w", err)
-	}
+	kv.saveToDisk()
 	fmt.Printf("Deleted key %s\n", key)
 	return nil
 }
 
 // saveToDisk persists the store to disk
-func (kv *KeyValueStore) saveToDisk() error {
+func (kv *KeyValueStore) saveToDisk() {
 	data := make(map[string]Item)
 	kv.store.Range(func(key, value interface{}) bool {
 		data[key.(string)] = value.(Item)
@@ -89,9 +81,13 @@ func (kv *KeyValueStore) saveToDisk() error {
 	})
 	bytes, err := json.Marshal(data)
 	if err != nil {
-		return err
+		fmt.Println("Error saving to disk:", err)
+		return
 	}
-	return os.WriteFile(kv.persistenceFile, bytes, 0644)
+	err = os.WriteFile(kv.persistenceFile, bytes, 0644)
+	if err != nil {
+		fmt.Println("Error saving to disk:", err)
+	}
 }
 
 // loadFromDisk loads the store from disk
@@ -141,9 +137,7 @@ func (kv *KeyValueStore) cleanupExpiredItems() {
 			kv.store.Delete(key)
 		}
 		if len(expiredKeys) > 0 {
-			if err := kv.saveToDisk(); err != nil {
-				fmt.Printf("error saving to disk during cleanup: %v\n", err)
-			}
+			kv.saveToDisk()
 		}
 	}
 }
@@ -152,8 +146,12 @@ func main() {
 	kv := NewKeyValueStore("kvstore.json")
 
 	// Setting key-value pairs with and without TTL
-	kv.Set("name", "John", 0)
-	kv.Set("session", "xyz123", 5*time.Second)
+	if err := kv.Set("name", "John", 0); err != nil {
+		fmt.Println("Error setting key 'name':", err)
+	}
+	if err := kv.Set("session", "xyz123", 5*time.Second); err != nil {
+		fmt.Println("Error setting key 'session':", err)
+	}
 
 	// Getting a value
 	name, err := kv.Get("name")
@@ -174,7 +172,9 @@ func main() {
 	}
 
 	// Deleting a key
-	kv.Delete("name")
+	if err := kv.Delete("name"); err != nil {
+		fmt.Println("Error deleting key 'name':", err)
+	}
 
 	// Trying to get a deleted key
 	name, err = kv.Get("name")
