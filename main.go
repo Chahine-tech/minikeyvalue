@@ -14,72 +14,92 @@ var (
 	ErrKeyAlreadyExists = errors.New("key already exists")
 )
 
-// KeyValueStore is an advanced thread-safe in-memory key-value store with persistence and TTL
 type KeyValueStore struct {
-	store           sync.Map
+	mutex           sync.RWMutex
+	store           map[string]Item
 	persistenceFile string
+	stopChan        chan struct{}
 }
 
-// Item represents a value with an optional expiration time
 type Item struct {
-	Value      string
+	Value      interface{}
 	Expiration int64
 }
 
-// NewKeyValueStore creates a new KeyValueStore with persistence
 func NewKeyValueStore(persistenceFile string) *KeyValueStore {
 	kv := &KeyValueStore{
+		store:           make(map[string]Item),
 		persistenceFile: persistenceFile,
+		stopChan:        make(chan struct{}),
 	}
 	kv.loadFromDisk()
 	go kv.cleanupExpiredItems()
 	return kv
 }
 
-// Set sets a key-value pair in the store with an optional TTL
-func (kv *KeyValueStore) Set(key, value string, ttl time.Duration) error {
-	_, exists := kv.store.Load(key)
-	if exists {
-		return ErrKeyAlreadyExists
-	}
+func (kv *KeyValueStore) Set(key string, value interface{}, ttl time.Duration) error {
+	kv.mutex.Lock()
+	defer kv.mutex.Unlock()
+
 	expiration := int64(0)
 	if ttl > 0 {
 		expiration = time.Now().Add(ttl).Unix()
 	}
-	kv.store.Store(key, Item{Value: value, Expiration: expiration})
+	kv.store[key] = Item{Value: value, Expiration: expiration}
 	kv.saveToDisk()
 	return nil
 }
 
-// Get retrieves a value by key from the store
-func (kv *KeyValueStore) Get(key string) (string, error) {
-	item, exists := kv.store.Load(key)
+func (kv *KeyValueStore) Get(key string) (interface{}, error) {
+	kv.mutex.RLock()
+	defer kv.mutex.RUnlock()
+
+	item, exists := kv.store[key]
 	if !exists {
-		return "", ErrKeyNotExist
+		return nil, ErrKeyNotExist
 	}
-	it := item.(Item)
-	if it.Expiration > 0 && it.Expiration < time.Now().Unix() {
-		return "", ErrKeyNotExist
+	if item.Expiration > 0 && item.Expiration < time.Now().Unix() {
+		delete(kv.store, key)
+		kv.saveToDisk()
+		return nil, ErrKeyNotExist
 	}
-	return it.Value, nil
+	return item.Value, nil
 }
 
-// Delete removes a key-value pair from the store
 func (kv *KeyValueStore) Delete(key string) error {
-	kv.store.Delete(key)
+	kv.mutex.Lock()
+	defer kv.mutex.Unlock()
+
+	_, exists := kv.store[key]
+	if !exists {
+		return ErrKeyNotExist
+	}
+
+	delete(kv.store, key)
 	kv.saveToDisk()
 	fmt.Printf("Deleted key %s\n", key)
 	return nil
 }
 
-// saveToDisk persists the store to disk
+// Update atomically updates the value for a given key using the provided update function.
+func (kv *KeyValueStore) Update(key string, updateFunc func(interface{}) interface{}) error {
+	kv.mutex.Lock()
+	defer kv.mutex.Unlock()
+
+	item, exists := kv.store[key]
+	if !exists {
+		return ErrKeyNotExist
+	}
+
+	// Apply the update function to the current value
+	item.Value = updateFunc(item.Value)
+	kv.store[key] = item
+	kv.saveToDisk()
+	return nil
+}
+
 func (kv *KeyValueStore) saveToDisk() {
-	data := make(map[string]Item)
-	kv.store.Range(func(key, value interface{}) bool {
-		data[key.(string)] = value.(Item)
-		return true
-	})
-	bytes, err := json.Marshal(data)
+	bytes, err := json.Marshal(kv.store)
 	if err != nil {
 		fmt.Println("Error saving to disk:", err)
 		return
@@ -90,60 +110,65 @@ func (kv *KeyValueStore) saveToDisk() {
 	}
 }
 
-// loadFromDisk loads the store from disk
 func (kv *KeyValueStore) loadFromDisk() {
-	_, err := os.Stat(kv.persistenceFile)
-	if os.IsNotExist(err) {
-		// File does not exist, create an empty file
-		emptyFile, err := os.Create(kv.persistenceFile)
-		if err != nil {
-			fmt.Println("Error creating persistence file:", err)
-			return
-		}
-		emptyFile.Close()
-		return
-	}
-
 	data, err := os.ReadFile(kv.persistenceFile)
 	if err != nil {
-		fmt.Println("Error loading from disk:", err)
+		if !os.IsNotExist(err) {
+			fmt.Println("Error loading from disk:", err)
+		}
 		return
 	}
-	var items map[string]Item
-	err = json.Unmarshal(data, &items)
+	err = json.Unmarshal(data, &kv.store)
 	if err != nil {
 		fmt.Println("Error loading from disk:", err)
-		return
-	}
-	for key, item := range items {
-		kv.store.Store(key, item)
 	}
 }
 
-// cleanupExpiredItems periodically removes expired items from the store
 func (kv *KeyValueStore) cleanupExpiredItems() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		expiredKeys := make([]string, 0)
-		kv.store.Range(func(key, value interface{}) bool {
-			item := value.(Item)
-			if item.Expiration > 0 && item.Expiration < time.Now().Unix() {
-				expiredKeys = append(expiredKeys, key.(string))
+	for {
+		select {
+		case <-ticker.C:
+			kv.mutex.Lock()
+			now := time.Now().Unix()
+			for key, item := range kv.store {
+				if item.Expiration > 0 && item.Expiration < now {
+					delete(kv.store, key)
+				}
 			}
-			return true
-		})
-		for _, key := range expiredKeys {
-			kv.store.Delete(key)
-		}
-		if len(expiredKeys) > 0 {
 			kv.saveToDisk()
+			kv.mutex.Unlock()
+		case <-kv.stopChan:
+			return
 		}
 	}
+}
+
+func (kv *KeyValueStore) Stop() {
+	close(kv.stopChan)
+}
+
+func (kv *KeyValueStore) Keys() []string {
+	kv.mutex.RLock()
+	defer kv.mutex.RUnlock()
+
+	keys := make([]string, 0, len(kv.store))
+	for k := range kv.store {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func (kv *KeyValueStore) Size() int {
+	kv.mutex.RLock()
+	defer kv.mutex.RUnlock()
+	return len(kv.store)
 }
 
 func main() {
 	kv := NewKeyValueStore("kvstore.json")
+	defer kv.Stop()
 
 	// Setting key-value pairs with and without TTL
 	if err := kv.Set("name", "John", 0); err != nil {
@@ -169,6 +194,22 @@ func main() {
 		fmt.Println("Session:", session)
 	} else {
 		fmt.Println("Session key has expired or does not exist")
+	}
+
+	// Atomically update a key
+	updateErr := kv.Update("name", func(value interface{}) interface{} {
+		return value.(string) + " Doe"
+	})
+	if updateErr != nil {
+		fmt.Println("Error updating key 'name':", updateErr)
+	}
+
+	// Getting the updated value
+	updatedName, err := kv.Get("name")
+	if err == nil {
+		fmt.Println("Updated Name:", updatedName)
+	} else {
+		fmt.Println("Name key does not exist")
 	}
 
 	// Deleting a key
