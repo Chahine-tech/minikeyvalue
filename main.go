@@ -234,7 +234,11 @@ func main() {
 	defer kv.Stop()
 
 	// Test operations
-	kv.Set("key1", "value1", 5*time.Second)
+	err := kv.Set("key1", "value1", 5*time.Second)
+	if err != nil {
+		log.Printf("Failed to set key1: %v\n", err)
+	}
+
 	value, err := kv.Get("key1")
 	if err != nil {
 		log.Printf("Error getting key1: %v\n", err)

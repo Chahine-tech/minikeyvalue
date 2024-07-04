@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -15,7 +16,9 @@ var encryptionKey = []byte{157, 232, 37, 233, 214, 121, 20, 237, 42, 164, 81, 21
 func init() {
 	go func() {
 		fmt.Println("Starting pprof on http://localhost:6060")
-		http.ListenAndServe("localhost:6060", nil)
+		if err := http.ListenAndServe("localhost:6060", nil); err != nil {
+			log.Fatalf("Failed to start pprof server: %v", err)
+		}
 	}()
 }
 
