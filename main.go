@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -33,7 +34,7 @@ func NewKeyValueStore(filePath string, encryptionKey []byte) *KeyValueStore {
 
 	// Load data from file if it exists
 	if err := kv.load(); err != nil {
-		fmt.Printf("Failed to load data: %v\n", err)
+		log.Printf("Failed to load data: %v\n", err)
 	}
 
 	// Start periodic cleanup of expired items
@@ -47,7 +48,7 @@ func (kv *KeyValueStore) Stop() {
 	close(kv.stopChan)  // Signal to stop periodic cleanup
 	<-kv.cleanupStopped // Wait for cleanup to finish
 	if err := kv.save(); err != nil {
-		fmt.Printf("Failed to save data: %v\n", err)
+		log.Printf("Failed to save data: %v\n", err)
 	}
 }
 
@@ -56,14 +57,14 @@ func (kv *KeyValueStore) Set(key string, value interface{}, ttl time.Duration) e
 	kv.Lock()
 	defer kv.Unlock()
 
-	fmt.Printf("Set: Acquired lock for key '%s'\n", key)
+	log.Printf("Set: Acquired lock for key '%s'\n", key)
 	kv.data[key] = value
 	if ttl > 0 {
 		kv.expirations[key] = time.Now().Add(ttl)
 	} else {
 		delete(kv.expirations, key)
 	}
-	fmt.Printf("Set: Released lock for key '%s'\n", key)
+	log.Printf("Set: Released lock for key '%s'\n", key)
 	return nil
 }
 
@@ -72,7 +73,7 @@ func (kv *KeyValueStore) Get(key string) (interface{}, error) {
 	kv.RLock()
 	defer kv.RUnlock()
 
-	fmt.Printf("Get: Acquired RLock for key '%s'\n", key)
+	log.Printf("Get: Acquired RLock for key '%s'\n", key)
 	value, exists := kv.data[key]
 	if !exists {
 		return nil, errors.New("key not found")
@@ -80,7 +81,7 @@ func (kv *KeyValueStore) Get(key string) (interface{}, error) {
 	if exp, ok := kv.expirations[key]; ok && time.Now().After(exp) {
 		return nil, errors.New("key expired")
 	}
-	fmt.Printf("Get: Released RLock for key '%s'\n", key)
+	log.Printf("Get: Released RLock for key '%s'\n", key)
 	return value, nil
 }
 
@@ -89,15 +90,15 @@ func (kv *KeyValueStore) CompareAndSwap(key string, oldValue, newValue interface
 	kv.Lock()
 	defer kv.Unlock()
 
-	fmt.Printf("CompareAndSwap: Acquired lock for key '%s'\n", key)
+	log.Printf("CompareAndSwap: Acquired lock for key '%s'\n", key)
 	value, exists := kv.data[key]
 	if !exists {
-		fmt.Printf("CompareAndSwap: Key '%s' not found\n", key)
+		log.Printf("CompareAndSwap: Key '%s' not found\n", key)
 		return false, errors.New("key not found")
 	}
 
 	if value != oldValue {
-		fmt.Printf("CompareAndSwap: Value mismatch for key '%s'. Expected: %v, Got: %v\n", key, oldValue, value)
+		log.Printf("CompareAndSwap: Value mismatch for key '%s'. Expected: %v, Got: %v\n", key, oldValue, value)
 		return false, nil
 	}
 
@@ -107,7 +108,7 @@ func (kv *KeyValueStore) CompareAndSwap(key string, oldValue, newValue interface
 	} else {
 		delete(kv.expirations, key)
 	}
-	fmt.Printf("CompareAndSwap: Released lock for key '%s'\n", key)
+	log.Printf("CompareAndSwap: Released lock for key '%s'\n", key)
 	return true, nil
 }
 
@@ -116,10 +117,10 @@ func (kv *KeyValueStore) Delete(key string) error {
 	kv.Lock()
 	defer kv.Unlock()
 
-	fmt.Printf("Delete: Acquired lock for key '%s'\n", key)
+	log.Printf("Delete: Acquired lock for key '%s'\n", key)
 	delete(kv.data, key)
 	delete(kv.expirations, key)
-	fmt.Printf("Delete: Released lock for key '%s'\n", key)
+	log.Printf("Delete: Released lock for key '%s'\n", key)
 	return nil
 }
 
@@ -128,12 +129,12 @@ func (kv *KeyValueStore) Keys() []string {
 	kv.RLock()
 	defer kv.RUnlock()
 
-	fmt.Println("Keys: Acquired RLock")
+	log.Println("Keys: Acquired RLock")
 	keys := make([]string, 0, len(kv.data))
 	for key := range kv.data {
 		keys = append(keys, key)
 	}
-	fmt.Println("Keys: Released RLock")
+	log.Println("Keys: Released RLock")
 	return keys
 }
 
@@ -142,9 +143,9 @@ func (kv *KeyValueStore) Size() int {
 	kv.RLock()
 	defer kv.RUnlock()
 
-	fmt.Println("Size: Acquired RLock")
+	log.Println("Size: Acquired RLock")
 	size := len(kv.data)
-	fmt.Println("Size: Released RLock")
+	log.Println("Size: Released RLock")
 	return size
 }
 
@@ -153,18 +154,18 @@ func (kv *KeyValueStore) save() error {
 	kv.RLock()
 	defer kv.RUnlock()
 
-	fmt.Println("Save: Acquired RLock")
+	log.Println("Save: Acquired RLock")
 	data, err := json.Marshal(kv.data)
 	if err != nil {
-		return err
+		return fmt.Errorf("error marshalling data: %v", err)
 	}
 
 	// Optional: encrypt data here using kv.encryptionKey
 
 	if err := os.WriteFile(kv.filePath, data, 0644); err != nil {
-		return err
+		return fmt.Errorf("error writing file: %v", err)
 	}
-	fmt.Println("Save: Released RLock")
+	log.Println("Save: Released RLock")
 	return nil
 }
 
@@ -173,28 +174,28 @@ func (kv *KeyValueStore) load() error {
 	kv.Lock()
 	defer kv.Unlock()
 
-	fmt.Println("Load: Acquired lock")
+	log.Println("Load: Acquired lock")
 	file, err := os.Open(kv.filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Println("Load: No existing file, starting fresh")
+			log.Println("Load: No existing file, starting fresh")
 			return nil // No existing file is fine, start fresh
 		}
-		return err
+		return fmt.Errorf("error opening file: %v", err)
 	}
 	defer file.Close()
 
 	data, err := os.ReadFile(kv.filePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("error reading file: %v", err)
 	}
 
 	// Optional: decrypt data here using kv.encryptionKey
 
 	if err := json.Unmarshal(data, &kv.data); err != nil {
-		return err
+		return fmt.Errorf("error unmarshalling data: %v", err)
 	}
-	fmt.Println("Load: Released lock")
+	log.Println("Load: Released lock")
 	return nil
 }
 
@@ -207,16 +208,16 @@ func (kv *KeyValueStore) cleanupExpiredItems() {
 		select {
 		case <-ticker.C:
 			kv.Lock()
-			fmt.Println("Cleanup: Acquired lock")
+			log.Println("Cleanup: Acquired lock")
 			now := time.Now()
 			for key, exp := range kv.expirations {
 				if now.After(exp) {
 					delete(kv.data, key)
 					delete(kv.expirations, key)
-					fmt.Printf("Cleanup: Expired key '%s' removed\n", key)
+					log.Printf("Cleanup: Expired key '%s' removed\n", key)
 				}
 			}
-			fmt.Println("Cleanup: Released lock")
+			log.Println("Cleanup: Released lock")
 			kv.Unlock()
 		case <-kv.stopChan:
 			kv.cleanupStopped <- struct{}{}
@@ -236,16 +237,16 @@ func main() {
 	kv.Set("key1", "value1", 5*time.Second)
 	value, err := kv.Get("key1")
 	if err != nil {
-		fmt.Printf("Error getting key1: %v\n", err)
+		log.Printf("Error getting key1: %v\n", err)
 	} else {
-		fmt.Printf("Got key1 value: %v\n", value)
+		log.Printf("Got key1 value: %v\n", value)
 	}
 
 	time.Sleep(6 * time.Second) // Wait for key1 to expire
 	value, err = kv.Get("key1")
 	if err != nil {
-		fmt.Printf("Error getting expired key1: %v\n", err)
+		log.Printf("Error getting expired key1: %v\n", err)
 	} else {
-		fmt.Printf("Got expired key1 value: %v\n", value)
+		log.Printf("Got expired key1 value: %v\n", value)
 	}
 }
