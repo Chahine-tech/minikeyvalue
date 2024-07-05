@@ -1,9 +1,14 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"sync"
@@ -16,7 +21,7 @@ type KeyValueStore struct {
 	data           map[string]interface{} // Stores key-value data
 	expirations    map[string]time.Time   // Tracks key expirations
 	filePath       string                 // File path for backup
-	encryptionKey  []byte                 // Encryption key for data (optional)
+	encryptionKey  []byte                 // Encryption key for data
 	stopChan       chan struct{}          // Channel to stop expired items cleanup
 	cleanupStopped chan struct{}          // Channel to signal cleanup stop
 }
@@ -149,6 +154,53 @@ func (kv *KeyValueStore) Size() int {
 	return size
 }
 
+// encryptData encrypts the given data using the provided encryption key.
+func encryptData(data []byte, key []byte) (string, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+
+	ciphertext := gcm.Seal(nonce, nonce, data, nil)
+	return base64.StdEncoding.EncodeToString(ciphertext), nil
+}
+
+// decryptData decrypts the given data using the provided encryption key.
+func decryptData(encryptedData string, key []byte) ([]byte, error) {
+	data, err := base64.StdEncoding.DecodeString(encryptedData)
+	if err != nil {
+		return nil, err
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	nonceSize := gcm.NonceSize()
+	if len(data) < nonceSize {
+		return nil, errors.New("malformed ciphertext")
+	}
+
+	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
+	return gcm.Open(nil, nonce, ciphertext, nil)
+}
+
 // save saves data to a file.
 func (kv *KeyValueStore) save() error {
 	kv.RLock()
@@ -160,7 +212,14 @@ func (kv *KeyValueStore) save() error {
 		return fmt.Errorf("error marshalling data: %v", err)
 	}
 
-	// Optional: encrypt data here using kv.encryptionKey
+	// Encrypt data here using kv.encryptionKey (if provided)
+	if len(kv.encryptionKey) > 0 {
+		encryptedData, err := encryptData(data, kv.encryptionKey)
+		if err != nil {
+			return fmt.Errorf("error encrypting data: %v", err)
+		}
+		data = []byte(encryptedData)
+	}
 
 	if err := os.WriteFile(kv.filePath, data, 0644); err != nil {
 		return fmt.Errorf("error writing file: %v", err)
@@ -190,7 +249,14 @@ func (kv *KeyValueStore) load() error {
 		return fmt.Errorf("error reading file: %v", err)
 	}
 
-	// Optional: decrypt data here using kv.encryptionKey
+	// Decrypt data here using kv.encryptionKey (if provided)
+	if len(kv.encryptionKey) > 0 {
+		decryptedData, err := decryptData(string(data), kv.encryptionKey)
+		if err != nil {
+			return fmt.Errorf("error decrypting data: %v", err)
+		}
+		data = decryptedData
+	}
 
 	if err := json.Unmarshal(data, &kv.data); err != nil {
 		return fmt.Errorf("error unmarshalling data: %v", err)
@@ -229,7 +295,7 @@ func (kv *KeyValueStore) cleanupExpiredItems() {
 func main() {
 	// Example usage:
 	filePath := "data.json"
-	encryptionKey := []byte("exampleEncryptionKey")
+	encryptionKey := []byte("exampleEncryptionKey") // Must be 16, 24 or 32 bytes for AES-128, AES-192, or AES-256 respectively
 	kv := NewKeyValueStore(filePath, encryptionKey)
 	defer kv.Stop()
 
