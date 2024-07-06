@@ -7,6 +7,29 @@ MiniKeyValue is a simple, lightweight key-value store written in Go. It provides
 - In-memory key-value store
 - Optional expiration for keys
 - Concurrency-safe operations
+- Data encryption for secure storage
+- Automatic cleanup of expired keys
+- Persistence to disk with encrypted backups
+
+## TODO
+
+- [ ] Implement data compression before encryption
+- [ ] Add version control for keys
+- [ ] Introduce notifications for key expirations
+- [ ] Support global TTL configuration
+- [ ] Optimize locking mechanisms
+- [ ] Implement lazy loading of data
+- [ ] Key rotation for encryption keys
+- [ ] Add authentication and authorization mechanisms
+- [ ] Maintain an audit log for operations
+- [ ] Develop distributed support for `KeyValueStore`
+- [ ] Expose a RESTful API
+- [ ] Build a command-line interface (CLI)
+- [ ] Create a web interface for managing keys
+- [ ] Integrate monitoring and alerting tools
+- [ ] Implement automated backups and restoration
+- [ ] Enhance documentation with detailed guides
+- [ ] Conduct performance and security testing
 
 ## Requirements
 
