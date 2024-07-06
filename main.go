@@ -24,6 +24,7 @@ type KeyValueStore struct {
 	encryptionKey  []byte                 // Encryption key for data
 	stopChan       chan struct{}          // Channel to stop expired items cleanup
 	cleanupStopped chan struct{}          // Channel to signal cleanup stop
+	stopOnce       sync.Once              // Ensures Stop is called only once
 }
 
 // NewKeyValueStore creates a new instance of KeyValueStore.
@@ -50,11 +51,15 @@ func NewKeyValueStore(filePath string, encryptionKey []byte) *KeyValueStore {
 
 // Stop stops the KeyValueStore instance.
 func (kv *KeyValueStore) Stop() {
-	close(kv.stopChan)  // Signal to stop periodic cleanup
-	<-kv.cleanupStopped // Wait for cleanup to finish
-	if err := kv.save(); err != nil {
-		log.Printf("Failed to save data: %v\n", err)
-	}
+	kv.stopOnce.Do(func() {
+		if kv.stopChan != nil {
+			close(kv.stopChan)  // Signal to stop periodic cleanup
+			<-kv.cleanupStopped // Wait for cleanup to finish
+		}
+		if err := kv.save(); err != nil {
+			log.Printf("Failed to save data: %v\n", err)
+		}
+	})
 }
 
 // Set sets a key-value pair in the store.
@@ -295,7 +300,7 @@ func (kv *KeyValueStore) cleanupExpiredItems() {
 func main() {
 	// Example usage:
 	filePath := "data.json"
-	encryptionKey := []byte("exampleEncryptionKey") // Must be 16, 24 or 32 bytes for AES-128, AES-192, or AES-256 respectively
+	encryptionKey := []byte("exampleEncryptionKey1234") // Must be 16, 24 or 32 bytes for AES-128, AES-192, or AES-256 respectively
 	kv := NewKeyValueStore(filePath, encryptionKey)
 	defer kv.Stop()
 

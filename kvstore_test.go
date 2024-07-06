@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var encryptionKey = []byte{157, 232, 37, 233, 214, 121, 20, 237, 42, 164, 81, 217, 169, 232, 113, 221, 132, 9, 61, 108, 67, 180, 30, 124, 113, 113, 218, 155, 86, 135, 241, 59}
+var encryptionKey = []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
 
 func init() {
 	go func() {
@@ -24,10 +24,16 @@ func init() {
 
 func TestKeyValueStore(t *testing.T) {
 	filePath := "test_store.json"
-	encryptionKey := []byte("secret")
+	encryptionKey := []byte("0123456789abcdef") // 16 bytes key for AES-128
 
 	// Initialize KeyValueStore
 	kvStore := NewKeyValueStore(filePath, encryptionKey)
+
+	// Ensure we clean up and persist data
+	defer func() {
+		kvStore.Stop()
+		os.Remove(filePath)
+	}()
 
 	// Set key 'name' with value 'Jane'
 	err := kvStore.Set("name", "Jane", 0)
@@ -47,8 +53,22 @@ func TestKeyValueStore(t *testing.T) {
 		t.Errorf("Expected value '%s', got '%v'", expected, value)
 	}
 
+	// Restart the KeyValueStore to ensure data is persisted correctly
+	kvStore.Stop()
+	kvStore = NewKeyValueStore(filePath, encryptionKey)
+
+	// Test Get operation again for key 'name' after restart
+	value, err = kvStore.Get("name")
+	if err != nil {
+		t.Fatalf("Failed to get key 'name' after restart: %v", err)
+	}
+	if value != expected {
+		t.Errorf("Expected value '%s' after restart, got '%v'", expected, value)
+	}
+
 	// Clean up after test
 	kvStore.Stop()
+	os.Remove(filePath)
 }
 
 func TestCleanupExpiredItems(t *testing.T) {
