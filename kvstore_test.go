@@ -322,7 +322,11 @@ func TestCompareAndSwapConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			kvStore.CompareAndSwap("key1", "value1", fmt.Sprintf("value%d", i), 0)
+			_, err := kvStore.CompareAndSwap("key1", "value1", fmt.Sprintf("value%d", i), 0)
+			if err != nil {
+				// Log the error if necessary or handle it appropriately
+				t.Logf("CompareAndSwap error: %v", err)
+			}
 		}(i)
 	}
 	wg.Wait()
