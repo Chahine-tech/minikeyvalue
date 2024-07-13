@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/zlib"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -159,6 +161,32 @@ func (kv *KeyValueStore) Size() int {
 	return size
 }
 
+// compressData compresses the given data using zlib.
+func compressData(data []byte) ([]byte, error) {
+	var b bytes.Buffer
+	w := zlib.NewWriter(&b)
+	_, err := w.Write(data)
+	if err != nil {
+		return nil, err
+	}
+	err = w.Close()
+	if err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
+}
+
+// decompressData decompresses the given data using zlib.
+func decompressData(data []byte) ([]byte, error) {
+	b := bytes.NewReader(data)
+	r, err := zlib.NewReader(b)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	return io.ReadAll(r)
+}
+
 // encryptData encrypts the given data using the provided encryption key.
 func encryptData(data []byte, key []byte) (string, error) {
 	block, err := aes.NewCipher(key)
@@ -217,13 +245,21 @@ func (kv *KeyValueStore) save() error {
 		return fmt.Errorf("error marshalling data: %v", err)
 	}
 
+	// Compress data here before encryption
+	compressedData, err := compressData(data)
+	if err != nil {
+		return fmt.Errorf("error compressing data: %v", err)
+	}
+
 	// Encrypt data here using kv.encryptionKey (if provided)
 	if len(kv.encryptionKey) > 0 {
-		encryptedData, err := encryptData(data, kv.encryptionKey)
+		encryptedData, err := encryptData(compressedData, kv.encryptionKey)
 		if err != nil {
 			return fmt.Errorf("error encrypting data: %v", err)
 		}
 		data = []byte(encryptedData)
+	} else {
+		data = compressedData
 	}
 
 	if err := os.WriteFile(kv.filePath, data, 0644); err != nil {
@@ -263,7 +299,13 @@ func (kv *KeyValueStore) load() error {
 		data = decryptedData
 	}
 
-	if err := json.Unmarshal(data, &kv.data); err != nil {
+	// Decompress data here after decryption
+	decompressedData, err := decompressData(data)
+	if err != nil {
+		return fmt.Errorf("error decompressing data: %v", err)
+	}
+
+	if err := json.Unmarshal(decompressedData, &kv.data); err != nil {
 		return fmt.Errorf("error unmarshalling data: %v", err)
 	}
 	log.Println("Load: Released lock")
