@@ -329,6 +329,7 @@ func (kv *KeyValueStore) cleanupExpiredItems() {
 	}
 }
 
+// Example usage of KeyValueStore with persistence and encryption.
 func main() {
 	// Example of KeyValueStore use
 	filePath := "data.json"
