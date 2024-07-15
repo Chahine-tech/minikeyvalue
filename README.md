@@ -13,7 +13,7 @@ MiniKeyValue is a simple, lightweight key-value store written in Go. It provides
 
 ## TODO
 
-- [ ] Implement data compression before encryption
+- [X] Implement data compression before encryption
 - [ ] Add version control for keys
 - [ ] Introduce notifications for key expirations
 - [ ] Support global TTL configuration
@@ -42,4 +42,3 @@ To install the MiniKeyValue package, use the following command:
 ```bash
 go get github.com/yourusername/minikeyvalue
 ```
-
