@@ -17,19 +17,19 @@ import (
 	"time"
 )
 
-// KeyValueStore represents a simple key-value store that supports setting and getting values.
+// KeyValueStore represents a simple key-value store with support for TTL, persistence, and encryption.
 type KeyValueStore struct {
-	sync.RWMutex                          // Mutex for synchronizing concurrent access
-	data           map[string]interface{} // Stores key-value data
-	expirations    map[string]time.Time   // Tracks key expirations
-	filePath       string                 // File path for backup
-	encryptionKey  []byte                 // Encryption key for data
-	stopChan       chan struct{}          // Channel to stop expired items cleanup
-	cleanupStopped chan struct{}          // Channel to signal cleanup stop
-	stopOnce       sync.Once              // Ensures Stop is called only once
+	sync.RWMutex
+	data           map[string]interface{}
+	expirations    map[string]time.Time
+	filePath       string
+	encryptionKey  []byte
+	stopChan       chan struct{}
+	cleanupStopped chan struct{}
+	stopOnce       sync.Once
 }
 
-// NewKeyValueStore creates a new instance of KeyValueStore.
+// NewKeyValueStore creates a new KeyValueStore instance and loads data from file if it exists.
 func NewKeyValueStore(filePath string, encryptionKey []byte) *KeyValueStore {
 	kv := &KeyValueStore{
 		data:           make(map[string]interface{}),
@@ -40,23 +40,21 @@ func NewKeyValueStore(filePath string, encryptionKey []byte) *KeyValueStore {
 		cleanupStopped: make(chan struct{}),
 	}
 
-	// Load data from file if it exists
 	if err := kv.load(); err != nil {
 		log.Printf("Failed to load data: %v\n", err)
 	}
 
-	// Start periodic cleanup of expired items
 	go kv.cleanupExpiredItems()
 
 	return kv
 }
 
-// Stop stops the KeyValueStore instance.
+// Stop stops the KeyValueStore instance and saves the data to the file.
 func (kv *KeyValueStore) Stop() {
 	kv.stopOnce.Do(func() {
 		if kv.stopChan != nil {
-			close(kv.stopChan)  // Signal to stop periodic cleanup
-			<-kv.cleanupStopped // Wait for cleanup to finish
+			close(kv.stopChan)
+			<-kv.cleanupStopped
 		}
 		if err := kv.save(); err != nil {
 			log.Printf("Failed to save data: %v\n", err)
@@ -64,7 +62,7 @@ func (kv *KeyValueStore) Stop() {
 	})
 }
 
-// Set sets a key-value pair in the store.
+// Set sets a key-value pair in the store with an optional TTL.
 func (kv *KeyValueStore) Set(key string, value interface{}, ttl time.Duration) error {
 	kv.Lock()
 	defer kv.Unlock()
@@ -97,7 +95,7 @@ func (kv *KeyValueStore) Get(key string) (interface{}, error) {
 	return value, nil
 }
 
-// CompareAndSwap compares the value of a key with an expected value and swaps it with a new value if the comparison succeeds.
+// CompareAndSwap compares and swaps the value of a key if the current value matches the expected value.
 func (kv *KeyValueStore) CompareAndSwap(key string, oldValue, newValue interface{}, ttl time.Duration) (bool, error) {
 	kv.Lock()
 	defer kv.Unlock()
@@ -234,7 +232,7 @@ func decryptData(encryptedData string, key []byte) ([]byte, error) {
 	return gcm.Open(nil, nonce, ciphertext, nil)
 }
 
-// save saves data to a file.
+// save saves data to a file with compression and encryption.
 func (kv *KeyValueStore) save() error {
 	kv.RLock()
 	defer kv.RUnlock()
@@ -245,13 +243,11 @@ func (kv *KeyValueStore) save() error {
 		return fmt.Errorf("error marshalling data: %v", err)
 	}
 
-	// Compress data here before encryption
 	compressedData, err := compressData(data)
 	if err != nil {
 		return fmt.Errorf("error compressing data: %v", err)
 	}
 
-	// Encrypt data here using kv.encryptionKey (if provided)
 	if len(kv.encryptionKey) > 0 {
 		encryptedData, err := encryptData(compressedData, kv.encryptionKey)
 		if err != nil {
@@ -269,7 +265,7 @@ func (kv *KeyValueStore) save() error {
 	return nil
 }
 
-// load loads data from a file.
+// load loads data from a file with decompression and decryption.
 func (kv *KeyValueStore) load() error {
 	kv.Lock()
 	defer kv.Unlock()
@@ -279,7 +275,7 @@ func (kv *KeyValueStore) load() error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			log.Println("Load: No existing file, starting fresh")
-			return nil // No existing file is fine, start fresh
+			return nil
 		}
 		return fmt.Errorf("error opening file: %v", err)
 	}
@@ -290,16 +286,13 @@ func (kv *KeyValueStore) load() error {
 		return fmt.Errorf("error reading file: %v", err)
 	}
 
-	// Decrypt data here using kv.encryptionKey (if provided)
 	if len(kv.encryptionKey) > 0 {
-		decryptedData, err := decryptData(string(data), kv.encryptionKey)
+		data, err = decryptData(string(data), kv.encryptionKey)
 		if err != nil {
 			return fmt.Errorf("error decrypting data: %v", err)
 		}
-		data = decryptedData
 	}
 
-	// Decompress data here after decryption
 	decompressedData, err := decompressData(data)
 	if err != nil {
 		return fmt.Errorf("error decompressing data: %v", err)
@@ -312,58 +305,26 @@ func (kv *KeyValueStore) load() error {
 	return nil
 }
 
-// cleanupExpiredItems periodically checks for expired items and deletes them.
+// cleanupExpiredItems runs periodically to remove expired items.
 func (kv *KeyValueStore) cleanupExpiredItems() {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
 			kv.Lock()
-			log.Println("Cleanup: Acquired lock")
 			now := time.Now()
 			for key, exp := range kv.expirations {
 				if now.After(exp) {
 					delete(kv.data, key)
 					delete(kv.expirations, key)
-					log.Printf("Cleanup: Expired key '%s' removed\n", key)
 				}
 			}
-			log.Println("Cleanup: Released lock")
 			kv.Unlock()
 		case <-kv.stopChan:
-			kv.cleanupStopped <- struct{}{}
+			close(kv.cleanupStopped)
 			return
 		}
-	}
-}
-
-func main() {
-	// Example usage:
-	filePath := "data.json"
-	encryptionKey := []byte("exampleEncryptionKey1234") // Must be 16, 24 or 32 bytes for AES-128, AES-192, or AES-256 respectively
-	kv := NewKeyValueStore(filePath, encryptionKey)
-	defer kv.Stop()
-
-	// Test operations
-	err := kv.Set("key1", "value1", 5*time.Second)
-	if err != nil {
-		log.Printf("Failed to set key1: %v\n", err)
-	}
-
-	value, err := kv.Get("key1")
-	if err != nil {
-		log.Printf("Error getting key1: %v\n", err)
-	} else {
-		log.Printf("Got key1 value: %v\n", value)
-	}
-
-	time.Sleep(6 * time.Second) // Wait for key1 to expire
-	value, err = kv.Get("key1")
-	if err != nil {
-		log.Printf("Error getting expired key1: %v\n", err)
-	} else {
-		log.Printf("Got expired key1 value: %v\n", value)
 	}
 }
