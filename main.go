@@ -334,6 +334,7 @@ func main() {
 	filePath := "data.json"
 	encryptionKey := []byte("encryptionKey")
 
+	// Initialize the KeyValueStore
 	kv := NewKeyValueStore(filePath, encryptionKey)
 	defer kv.Stop()
 
@@ -343,12 +344,14 @@ func main() {
 		log.Fatalf("Error setting value: %v", err)
 	}
 
+	// Get the value for a key
 	value, err := kv.Get("key1")
 	if err != nil {
 		log.Fatalf("Error getting value: %v", err)
 	}
 	log.Printf("Retrieved value: %v\n", value)
 
-	// Set a key-value pair with TTL
+	// Simulate waiting for TTL expiration
+	// In a real application, handle expiration asynchronously or with a ticker
 	time.Sleep(5 * time.Second)
 }
