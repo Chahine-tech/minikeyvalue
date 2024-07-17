@@ -1,16 +1,9 @@
-package main
+package store
 
 import (
-	"bytes"
-	"compress/zlib"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"sync"
@@ -122,7 +115,7 @@ func (kv *KeyValueStore) CompareAndSwap(key string, oldValue, newValue interface
 	return true, nil
 }
 
-// Delete deletes a key from the store.
+// Delete removes a key from the store.
 func (kv *KeyValueStore) Delete(key string) error {
 	kv.Lock()
 	defer kv.Unlock()
@@ -159,79 +152,6 @@ func (kv *KeyValueStore) Size() int {
 	return size
 }
 
-// compressData compresses the given data using zlib.
-func compressData(data []byte) ([]byte, error) {
-	var b bytes.Buffer
-	w := zlib.NewWriter(&b)
-	_, err := w.Write(data)
-	if err != nil {
-		return nil, err
-	}
-	err = w.Close()
-	if err != nil {
-		return nil, err
-	}
-	return b.Bytes(), nil
-}
-
-// decompressData decompresses the given data using zlib.
-func decompressData(data []byte) ([]byte, error) {
-	b := bytes.NewReader(data)
-	r, err := zlib.NewReader(b)
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-	return io.ReadAll(r)
-}
-
-// encryptData encrypts the given data using the provided encryption key.
-func encryptData(data []byte, key []byte) (string, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
-	}
-
-	ciphertext := gcm.Seal(nonce, nonce, data, nil)
-	return base64.StdEncoding.EncodeToString(ciphertext), nil
-}
-
-// decryptData decrypts the given data using the provided encryption key.
-func decryptData(encryptedData string, key []byte) ([]byte, error) {
-	data, err := base64.StdEncoding.DecodeString(encryptedData)
-	if err != nil {
-		return nil, err
-	}
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	nonceSize := gcm.NonceSize()
-	if len(data) < nonceSize {
-		return nil, errors.New("malformed ciphertext")
-	}
-
-	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
-	return gcm.Open(nil, nonce, ciphertext, nil)
-}
-
 // save saves data to a file with compression and encryption.
 func (kv *KeyValueStore) save() error {
 	kv.RLock()
@@ -265,7 +185,7 @@ func (kv *KeyValueStore) save() error {
 	return nil
 }
 
-// load loads data from a file with decompression and decryption.
+// load data from a file with decompression and decryption.
 func (kv *KeyValueStore) load() error {
 	kv.Lock()
 	defer kv.Unlock()
@@ -303,56 +223,4 @@ func (kv *KeyValueStore) load() error {
 	}
 	log.Println("Load: Released lock")
 	return nil
-}
-
-// cleanupExpiredItems runs periodically to remove expired items.
-func (kv *KeyValueStore) cleanupExpiredItems() {
-	ticker := time.NewTicker(1 * time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			kv.Lock()
-			now := time.Now()
-			for key, exp := range kv.expirations {
-				if now.After(exp) {
-					delete(kv.data, key)
-					delete(kv.expirations, key)
-				}
-			}
-			kv.Unlock()
-		case <-kv.stopChan:
-			close(kv.cleanupStopped)
-			return
-		}
-	}
-}
-
-// Example usage of KeyValueStore with persistence and encryption.
-func main() {
-	// Example of KeyValueStore use
-	filePath := "data.json"
-	encryptionKey := []byte("encryptionKey")
-
-	// Initialize the KeyValueStore
-	kv := NewKeyValueStore(filePath, encryptionKey)
-	defer kv.Stop()
-
-	// Set a key-value pair
-	err := kv.Set("key1", "value1", 0)
-	if err != nil {
-		log.Fatalf("Error setting value: %v", err)
-	}
-
-	// Get the value for a key
-	value, err := kv.Get("key1")
-	if err != nil {
-		log.Fatalf("Error getting value: %v", err)
-	}
-	log.Printf("Retrieved value: %v\n", value)
-
-	// Simulate waiting for TTL expiration
-	// In a real application, handle expiration asynchronously or with a ticker
-	time.Sleep(5 * time.Second)
 }
