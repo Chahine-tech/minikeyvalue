@@ -10,10 +10,16 @@ import (
 	"time"
 )
 
+// KeyValue represents a key-value pair with a timestamp.
+type KeyValue struct {
+	Value     string
+	Timestamp time.Time
+}
+
 // KeyValueStore represents a simple key-value store with support for TTL, persistence, and encryption.
 type KeyValueStore struct {
 	sync.RWMutex
-	data           map[string]interface{}
+	data           map[string][]KeyValue
 	expirations    map[string]time.Time
 	filePath       string
 	encryptionKey  []byte
@@ -25,7 +31,7 @@ type KeyValueStore struct {
 // NewKeyValueStore creates a new KeyValueStore instance and loads data from file if it exists.
 func NewKeyValueStore(filePath string, encryptionKey []byte) *KeyValueStore {
 	kv := &KeyValueStore{
-		data:           make(map[string]interface{}),
+		data:           make(map[string][]KeyValue),
 		expirations:    make(map[string]time.Time),
 		filePath:       filePath,
 		encryptionKey:  encryptionKey,
@@ -56,58 +62,80 @@ func (kv *KeyValueStore) Stop() {
 }
 
 // Set sets a key-value pair in the store with an optional TTL.
-func (kv *KeyValueStore) Set(key string, value interface{}, ttl time.Duration) error {
+func (kv *KeyValueStore) Set(key, value string, expiration time.Duration) error {
 	kv.Lock()
 	defer kv.Unlock()
 
 	log.Printf("Set: Acquired lock for key '%s'\n", key)
-	kv.data[key] = value
-	if ttl > 0 {
-		kv.expirations[key] = time.Now().Add(ttl)
+	now := time.Now()
+	kv.data[key] = append(kv.data[key], KeyValue{
+		Value:     value,
+		Timestamp: now,
+	})
+
+	if expiration > 0 {
+		kv.expirations[key] = now.Add(expiration)
 	} else {
 		delete(kv.expirations, key)
 	}
-	log.Printf("Set: Released lock for key '%s'\n", key)
+
 	return nil
 }
 
 // Get retrieves the value for a given key from the store.
-func (kv *KeyValueStore) Get(key string) (interface{}, error) {
+func (kv *KeyValueStore) Get(key string) (string, error) {
 	kv.RLock()
 	defer kv.RUnlock()
 
 	log.Printf("Get: Acquired RLock for key '%s'\n", key)
-	value, exists := kv.data[key]
-	if !exists {
-		return nil, errors.New("key not found")
+	values, exists := kv.data[key]
+	if !exists || len(values) == 0 {
+		return "", errors.New("key not found")
 	}
 	if exp, ok := kv.expirations[key]; ok && time.Now().After(exp) {
-		return nil, errors.New("key expired")
+		return "", errors.New("key expired")
 	}
 	log.Printf("Get: Released RLock for key '%s'\n", key)
-	return value, nil
+	return values[len(values)-1].Value, nil
+}
+
+// GetVersion retrieves the value for the given key at the specified version
+func (kv *KeyValueStore) GetVersion(key string, version int) (string, error) {
+	kv.RLock()
+	defer kv.RUnlock()
+
+	versions, exists := kv.data[key]
+	if !exists || version >= len(versions) {
+		return "", errors.New("version not found")
+	}
+
+	return versions[version].Value, nil
 }
 
 // CompareAndSwap compares and swaps the value of a key if the current value matches the expected value.
-func (kv *KeyValueStore) CompareAndSwap(key string, oldValue, newValue interface{}, ttl time.Duration) (bool, error) {
+func (kv *KeyValueStore) CompareAndSwap(key string, oldValue, newValue string, ttl time.Duration) (bool, error) {
 	kv.Lock()
 	defer kv.Unlock()
 
 	log.Printf("CompareAndSwap: Acquired lock for key '%s'\n", key)
-	value, exists := kv.data[key]
-	if !exists {
+	values, exists := kv.data[key]
+	if !exists || len(values) == 0 {
 		log.Printf("CompareAndSwap: Key '%s' not found\n", key)
 		return false, errors.New("key not found")
 	}
 
-	if value != oldValue {
-		log.Printf("CompareAndSwap: Value mismatch for key '%s'. Expected: %v, Got: %v\n", key, oldValue, value)
+	if values[len(values)-1].Value != oldValue {
+		log.Printf("CompareAndSwap: Value mismatch for key '%s'. Expected: %v, Got: %v\n", key, oldValue, values[len(values)-1].Value)
 		return false, nil
 	}
 
-	kv.data[key] = newValue
+	now := time.Now()
+	kv.data[key] = append(kv.data[key], KeyValue{
+		Value:     newValue,
+		Timestamp: now,
+	})
 	if ttl > 0 {
-		kv.expirations[key] = time.Now().Add(ttl)
+		kv.expirations[key] = now.Add(ttl)
 	} else {
 		delete(kv.expirations, key)
 	}
