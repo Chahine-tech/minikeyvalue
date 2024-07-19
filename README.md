@@ -40,5 +40,5 @@ MiniKeyValue is a simple, lightweight key-value store written in Go. It provides
 To install the MiniKeyValue package, use the following command:
 
 ```bash
-go get github.com/yourusername/minikeyvalue
+go get github.com/Chahine-tech/minikeyvalue
 ```
