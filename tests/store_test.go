@@ -10,12 +10,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/Chahine-tech/minikeyvalue/internal/store"
 )
 
 var encryptionKey = []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
@@ -34,7 +35,7 @@ func TestKeyValueStore(t *testing.T) {
 	encryptionKey := []byte("0123456789abcdef") // 16 bytes key for AES-128
 
 	// Initialize KeyValueStore
-	kvStore := NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
 
 	// Ensure we clean up and persist data
 	defer func() {
@@ -62,7 +63,7 @@ func TestKeyValueStore(t *testing.T) {
 
 	// Restart the KeyValueStore to ensure data is persisted correctly
 	kvStore.Stop()
-	kvStore = NewKeyValueStore(filePath, encryptionKey)
+	kvStore = store.NewKeyValueStore(filePath, encryptionKey)
 
 	// Test Get operation again for key 'name' after restart
 	value, err = kvStore.Get("name")
@@ -84,7 +85,7 @@ func TestCleanupExpiredItems(t *testing.T) {
 	os.Remove(persistenceFile)
 	defer os.Remove(persistenceFile)
 
-	kv := NewKeyValueStore(persistenceFile, encryptionKey)
+	kv := store.NewKeyValueStore(persistenceFile, encryptionKey)
 	defer kv.Stop()
 
 	if err := kv.Set("temp", "data", 1*time.Second); err != nil {
@@ -105,7 +106,7 @@ func TestKeyValueStoreConcurrency(t *testing.T) {
 	os.Remove(persistenceFile)
 	defer os.Remove(persistenceFile)
 
-	kv := NewKeyValueStore(persistenceFile, encryptionKey)
+	kv := store.NewKeyValueStore(persistenceFile, encryptionKey)
 	defer kv.Stop()
 
 	var wg sync.WaitGroup
@@ -140,7 +141,7 @@ func TestCompareAndSwapConcurrency(t *testing.T) {
 	filePath := "test_store_cas_concurrency.json"
 	encryptionKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
 
-	kvStore := NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
 	defer func() {
 		kvStore.Stop()
 		os.Remove(filePath)
@@ -177,7 +178,7 @@ func TestCompressionAndEncryption(t *testing.T) {
 	filePath := "test_compression_encryption.json"
 	encryptionKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
 
-	kvStore := NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
 	defer func() {
 		kvStore.Stop()
 		os.Remove(filePath)
@@ -199,7 +200,7 @@ func TestCompressionAndEncryption(t *testing.T) {
 
 	// Restart the KeyValueStore to ensure data is persisted and correctly loaded
 	kvStore.Stop()
-	kvStore = NewKeyValueStore(filePath, encryptionKey)
+	kvStore = store.NewKeyValueStore(filePath, encryptionKey)
 
 	value, err = kvStore.Get("key1")
 	if err != nil {
@@ -214,7 +215,7 @@ func TestKeyValueStoreWithCompressionAndEncryption(t *testing.T) {
 	filePath := "test_store_compression_encryption.json"
 	encryptionKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
 
-	kvStore := NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
 	defer func() {
 		kvStore.Stop()
 		os.Remove(filePath)
@@ -271,7 +272,7 @@ func TestLargeDataCompressionAndEncryption(t *testing.T) {
 	filePath := "test_large_data_compression_encryption.json"
 	encryptionKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
 
-	kvStore := NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
 	defer func() {
 		kvStore.Stop()
 		os.Remove(filePath)
@@ -300,7 +301,7 @@ func TestNonCompressibleData(t *testing.T) {
 	filePath := "test_non_compressible_data.json"
 	encryptionKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
 
-	kvStore := NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
 	defer func() {
 		kvStore.Stop()
 		os.Remove(filePath)
@@ -326,7 +327,7 @@ func TestHighlyCompressibleData(t *testing.T) {
 	filePath := "test_highly_compressible_data.json"
 	encryptionKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
 
-	kvStore := NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
 	defer func() {
 		kvStore.Stop()
 		os.Remove(filePath)
@@ -361,7 +362,7 @@ func TestOldDataCompatibility(t *testing.T) {
 	}
 
 	// Initialize new KeyValueStore
-	kvStore := NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
 	defer func() {
 		kvStore.Stop()
 		os.Remove(filePath)
