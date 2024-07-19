@@ -1,16 +1,12 @@
 package main
 
 import (
-	"bytes"
-	"compress/zlib"
-	"crypto/aes"
-	"crypto/cipher"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -349,16 +345,20 @@ func TestHighlyCompressibleData(t *testing.T) {
 	}
 }
 
-func TestOldDataCompatibility(t *testing.T) {
-	filePath := "test_old_data_compatibility.json"
+func TestNewDataFormat(t *testing.T) {
+	filePath := "test_new_data_format.json"
 	encryptionKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
 
-	// Simulate old data
-	oldData := map[string]string{"oldKey": "oldValue"}
-	// Store old data to file (simulate old format)
-	err := saveOldFormat(filePath, oldData)
+	// Create new data format
+	now := time.Now()
+	newData := map[string][]store.KeyValue{
+		"newKey": {{Value: "newValue", Timestamp: now}},
+	}
+
+	// Save new data format to file
+	err := saveNewFormat(filePath, newData, encryptionKey)
 	if err != nil {
-		t.Fatalf("Failed to save old format data: %v", err)
+		t.Fatalf("Failed to save new format data: %v", err)
 	}
 
 	// Initialize new KeyValueStore
@@ -368,55 +368,38 @@ func TestOldDataCompatibility(t *testing.T) {
 		os.Remove(filePath)
 	}()
 
-	// Test if old data is readable
-	value, err := kvStore.Get("oldKey")
+	// Test if new data is readable
+	value, err := kvStore.Get("newKey")
 	if err != nil {
-		t.Fatalf("Failed to get old key: %v", err)
+		t.Fatalf("Failed to get new key: %v", err)
 	}
-	if value != "oldValue" {
-		t.Errorf("Expected value 'oldValue', got '%v'", value)
+
+	expectedValue := []store.KeyValue{{Value: "newValue", Timestamp: now}}
+	if !reflect.DeepEqual(value, expectedValue) {
+		t.Errorf("Expected value '%v', got '%v'", expectedValue, value)
 	}
 }
 
-// Encrypt and save old format data
-func saveOldFormat(filePath string, data map[string]string) error {
-	file, err := os.Create(filePath)
+func saveNewFormat(filePath string, newData map[string][]store.KeyValue, encryptionKey []byte) error {
+	data, err := json.Marshal(newData)
 	if err != nil {
-		return fmt.Errorf("failed to create file: %v", err)
+		return fmt.Errorf("error marshalling new format data: %v", err)
 	}
-	defer file.Close()
 
-	block, err := aes.NewCipher(encryptionKey)
+	compressedData, err := compressData(data)
 	if err != nil {
-		return fmt.Errorf("failed to create cipher: %v", err)
+		return fmt.Errorf("error compressing data: %v", err)
 	}
 
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return fmt.Errorf("failed to create GCM: %v", err)
+	if len(encryptionKey) > 0 {
+		encryptedData, err := encryptData(compressedData, encryptionKey)
+		if err != nil {
+			return fmt.Errorf("error encrypting data: %v", err)
+		}
+		data = []byte(encryptedData)
+	} else {
+		data = compressedData
 	}
 
-	nonce := make([]byte, gcm.NonceSize())
-	plaintext, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("failed to marshal data: %v", err)
-	}
-
-	// Compress the data
-	var compressedData bytes.Buffer
-	writer := zlib.NewWriter(&compressedData)
-	if _, err := writer.Write(plaintext); err != nil {
-		return fmt.Errorf("failed to compress data: %v", err)
-	}
-	writer.Close()
-
-	// Encrypt the compressed data
-	ciphertext := gcm.Seal(nonce, nonce, compressedData.Bytes(), nil)
-	encoded := base64.StdEncoding.EncodeToString(ciphertext)
-
-	if _, err := file.Write([]byte(encoded)); err != nil {
-		return fmt.Errorf("failed to write encrypted data to file: %v", err)
-	}
-
-	return nil
+	return os.WriteFile(filePath, data, 0644)
 }
