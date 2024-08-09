@@ -10,7 +10,7 @@ import (
 )
 
 // encryptData encrypts the given data using the provided key.
-func encryptData(data []byte, key []byte) (string, error) {
+func EncryptData(data []byte, key []byte) (string, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", err
@@ -31,7 +31,7 @@ func encryptData(data []byte, key []byte) (string, error) {
 }
 
 // decryptData decrypts the given encrypted data using the provided key.
-func decryptData(encryptedData string, key []byte) ([]byte, error) {
+func DecryptData(encryptedData string, key []byte) ([]byte, error) {
 	data, err := base64.StdEncoding.DecodeString(encryptedData)
 	if err != nil {
 		return nil, err

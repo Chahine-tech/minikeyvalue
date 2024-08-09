@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -374,8 +373,8 @@ func TestNewDataFormat(t *testing.T) {
 		t.Fatalf("Failed to get new key: %v", err)
 	}
 
-	expectedValue := []store.KeyValue{{Value: "newValue", Timestamp: now}}
-	if !reflect.DeepEqual(value, expectedValue) {
+	expectedValue := "newValue"
+	if value != expectedValue {
 		t.Errorf("Expected value '%v', got '%v'", expectedValue, value)
 	}
 }
@@ -386,13 +385,13 @@ func saveNewFormat(filePath string, newData map[string][]store.KeyValue, encrypt
 		return fmt.Errorf("error marshalling new format data: %v", err)
 	}
 
-	compressedData, err := compressData(data)
+	compressedData, err := store.CompressData(data)
 	if err != nil {
 		return fmt.Errorf("error compressing data: %v", err)
 	}
 
 	if len(encryptionKey) > 0 {
-		encryptedData, err := encryptData(compressedData, encryptionKey)
+		encryptedData, err := store.EncryptData(compressedData, encryptionKey)
 		if err != nil {
 			return fmt.Errorf("error encrypting data: %v", err)
 		}

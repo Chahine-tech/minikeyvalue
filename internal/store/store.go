@@ -191,13 +191,13 @@ func (kv *KeyValueStore) save() error {
 		return fmt.Errorf("error marshalling data: %v", err)
 	}
 
-	compressedData, err := compressData(data)
+	compressedData, err := CompressData(data)
 	if err != nil {
 		return fmt.Errorf("error compressing data: %v", err)
 	}
 
 	if len(kv.encryptionKey) > 0 {
-		encryptedData, err := encryptData(compressedData, kv.encryptionKey)
+		encryptedData, err := EncryptData(compressedData, kv.encryptionKey)
 		if err != nil {
 			return fmt.Errorf("error encrypting data: %v", err)
 		}
@@ -235,13 +235,13 @@ func (kv *KeyValueStore) load() error {
 	}
 
 	if len(kv.encryptionKey) > 0 {
-		data, err = decryptData(string(data), kv.encryptionKey)
+		data, err = DecryptData(string(data), kv.encryptionKey)
 		if err != nil {
 			return fmt.Errorf("error decrypting data: %v", err)
 		}
 	}
 
-	decompressedData, err := decompressData(data)
+	decompressedData, err := DecompressData(data)
 	if err != nil {
 		return fmt.Errorf("error decompressing data: %v", err)
 	}

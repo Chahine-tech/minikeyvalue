@@ -6,8 +6,8 @@ import (
 	"io"
 )
 
-// compressData compresses the given data using the zlib compression algorithm.
-func compressData(data []byte) ([]byte, error) {
+// CompressData compresses the given data using the zlib compression algorithm.
+func CompressData(data []byte) ([]byte, error) {
 	var b bytes.Buffer
 	w := zlib.NewWriter(&b)
 	_, err := w.Write(data)
@@ -21,8 +21,8 @@ func compressData(data []byte) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// decompressData decompresses the given data using the zlib compression algorithm.
-func decompressData(data []byte) ([]byte, error) {
+// DecompressData decompresses the given data using the zlib compression algorithm.
+func DecompressData(data []byte) ([]byte, error) {
 	b := bytes.NewReader(data)
 	r, err := zlib.NewReader(b)
 	if err != nil {
