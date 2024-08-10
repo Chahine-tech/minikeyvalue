@@ -1,11 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"compress/zlib"
-	"crypto/aes"
-	"crypto/cipher"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -34,14 +29,14 @@ func TestKeyValueStore(t *testing.T) {
 	filePath := "test_store.json"
 	encryptionKey := []byte("0123456789abcdef") // 16 bytes key for AES-128
 
+	// Ensure we clean up and persist data
+	defer os.Remove(filePath) // Supprimez le fichier après le test
+
 	// Initialize KeyValueStore
 	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
 
 	// Ensure we clean up and persist data
-	defer func() {
-		kvStore.Stop()
-		os.Remove(filePath)
-	}()
+	defer kvStore.Stop()
 
 	// Set key 'name' with value 'Jane'
 	err := kvStore.Set("name", "Jane", 0)
@@ -76,14 +71,13 @@ func TestKeyValueStore(t *testing.T) {
 
 	// Clean up after test
 	kvStore.Stop()
-	os.Remove(filePath)
+	os.Remove(filePath) // Supprimez le fichier après le test
 }
 
 func TestCleanupExpiredItems(t *testing.T) {
 	fmt.Println("Running TestCleanupExpiredItems")
 	const persistenceFile = "test_kvstore_cleanup.json"
-	os.Remove(persistenceFile)
-	defer os.Remove(persistenceFile)
+	defer os.Remove(persistenceFile) // Supprimez le fichier après le test
 
 	kv := store.NewKeyValueStore(persistenceFile, encryptionKey)
 	defer kv.Stop()
@@ -103,8 +97,7 @@ func TestCleanupExpiredItems(t *testing.T) {
 func TestKeyValueStoreConcurrency(t *testing.T) {
 	fmt.Println("Running TestKeyValueStoreConcurrency")
 	const persistenceFile = "test_kvstore_concurrency.json"
-	os.Remove(persistenceFile)
-	defer os.Remove(persistenceFile)
+	defer os.Remove(persistenceFile) // Supprimez le fichier après le test
 
 	kv := store.NewKeyValueStore(persistenceFile, encryptionKey)
 	defer kv.Stop()
@@ -139,13 +132,10 @@ func TestKeyValueStoreConcurrency(t *testing.T) {
 
 func TestCompareAndSwapConcurrency(t *testing.T) {
 	filePath := "test_store_cas_concurrency.json"
-	encryptionKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
+	defer os.Remove(filePath) // Supprimez le fichier après le test
 
 	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
-	defer func() {
-		kvStore.Stop()
-		os.Remove(filePath)
-	}()
+	defer kvStore.Stop()
 
 	err := kvStore.Set("key1", "value1", 0)
 	if err != nil {
@@ -176,13 +166,10 @@ func TestCompareAndSwapConcurrency(t *testing.T) {
 
 func TestCompressionAndEncryption(t *testing.T) {
 	filePath := "test_compression_encryption.json"
-	encryptionKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
+	defer os.Remove(filePath) // Supprimez le fichier après le test
 
 	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
-	defer func() {
-		kvStore.Stop()
-		os.Remove(filePath)
-	}()
+	defer kvStore.Stop()
 
 	// Set a value and check if it can be retrieved correctly
 	err := kvStore.Set("key1", "value1", 0)
@@ -213,13 +200,10 @@ func TestCompressionAndEncryption(t *testing.T) {
 
 func TestKeyValueStoreWithCompressionAndEncryption(t *testing.T) {
 	filePath := "test_store_compression_encryption.json"
-	encryptionKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
+	defer os.Remove(filePath) // Supprimez le fichier après le test
 
 	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
-	defer func() {
-		kvStore.Stop()
-		os.Remove(filePath)
-	}()
+	defer kvStore.Stop()
 
 	// Test Set and Get operations
 	err := kvStore.Set("name", "Jane", 0)
@@ -270,13 +254,10 @@ func TestKeyValueStoreWithCompressionAndEncryption(t *testing.T) {
 
 func TestLargeDataCompressionAndEncryption(t *testing.T) {
 	filePath := "test_large_data_compression_encryption.json"
-	encryptionKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
+	defer os.Remove(filePath) // Supprimez le fichier après le test
 
 	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
-	defer func() {
-		kvStore.Stop()
-		os.Remove(filePath)
-	}()
+	defer kvStore.Stop()
 
 	largeValue := make([]byte, 10*1024*1024) // 10 MB of data
 	for i := range largeValue {
@@ -299,13 +280,10 @@ func TestLargeDataCompressionAndEncryption(t *testing.T) {
 
 func TestNonCompressibleData(t *testing.T) {
 	filePath := "test_non_compressible_data.json"
-	encryptionKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
+	defer os.Remove(filePath) // Supprimez le fichier après le test
 
 	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
-	defer func() {
-		kvStore.Stop()
-		os.Remove(filePath)
-	}()
+	defer kvStore.Stop()
 
 	nonCompressibleValue := "abcdefghijklmnopqrstuvwxyz0123456789" // Example of non-compressible data
 
@@ -325,13 +303,10 @@ func TestNonCompressibleData(t *testing.T) {
 
 func TestHighlyCompressibleData(t *testing.T) {
 	filePath := "test_highly_compressible_data.json"
-	encryptionKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
+	defer os.Remove(filePath) // Supprimez le fichier après le test
 
 	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
-	defer func() {
-		kvStore.Stop()
-		os.Remove(filePath)
-	}()
+	defer kvStore.Stop()
 
 	highlyCompressibleValue := strings.Repeat("a", 10000) // Highly compressible data
 
@@ -349,74 +324,245 @@ func TestHighlyCompressibleData(t *testing.T) {
 	}
 }
 
-func TestOldDataCompatibility(t *testing.T) {
-	filePath := "test_old_data_compatibility.json"
-	encryptionKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes key for AES-256
+func TestNewDataFormat(t *testing.T) {
+	filePath := "test_new_data_format.json"
+	defer os.Remove(filePath) // Supprimez le fichier après le test
 
-	// Simulate old data
-	oldData := map[string]string{"oldKey": "oldValue"}
-	// Store old data to file (simulate old format)
-	err := saveOldFormat(filePath, oldData)
+	// Create new data format
+	now := time.Now()
+	newData := map[string][]store.KeyValue{
+		"newKey": {{Value: "newValue", Timestamp: now}},
+	}
+
+	// Save new data format to file
+	err := saveNewFormat(filePath, newData, encryptionKey)
 	if err != nil {
-		t.Fatalf("Failed to save old format data: %v", err)
+		t.Fatalf("Failed to save new format data: %v", err)
 	}
 
 	// Initialize new KeyValueStore
 	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
-	defer func() {
-		kvStore.Stop()
-		os.Remove(filePath)
-	}()
+	defer kvStore.Stop()
 
-	// Test if old data is readable
-	value, err := kvStore.Get("oldKey")
+	// Test if new data is readable
+	value, err := kvStore.Get("newKey")
 	if err != nil {
-		t.Fatalf("Failed to get old key: %v", err)
+		t.Fatalf("Failed to get new key: %v", err)
 	}
-	if value != "oldValue" {
-		t.Errorf("Expected value 'oldValue', got '%v'", value)
+
+	expectedValue := "newValue"
+	if value != expectedValue {
+		t.Errorf("Expected value '%v', got '%v'", expectedValue, value)
 	}
 }
 
-// Encrypt and save old format data
-func saveOldFormat(filePath string, data map[string]string) error {
-	file, err := os.Create(filePath)
+func saveNewFormat(filePath string, newData map[string][]store.KeyValue, encryptionKey []byte) error {
+	data, err := json.Marshal(newData)
 	if err != nil {
-		return fmt.Errorf("failed to create file: %v", err)
+		return fmt.Errorf("error marshalling new format data: %v", err)
 	}
-	defer file.Close()
 
-	block, err := aes.NewCipher(encryptionKey)
+	compressedData, err := store.CompressData(data)
 	if err != nil {
-		return fmt.Errorf("failed to create cipher: %v", err)
+		return fmt.Errorf("error compressing data: %v", err)
 	}
 
-	gcm, err := cipher.NewGCM(block)
+	if len(encryptionKey) > 0 {
+		encryptedData, err := store.EncryptData(compressedData, encryptionKey)
+		if err != nil {
+			return fmt.Errorf("error encrypting data: %v", err)
+		}
+		data = []byte(encryptedData)
+	} else {
+		data = compressedData
+	}
+
+	return os.WriteFile(filePath, data, 0644)
+}
+
+func TestGetVersion(t *testing.T) {
+	filePath := "test_get_version.json"
+	defer os.Remove(filePath) // Supprimez le fichier après le test
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	defer kvStore.Stop()
+
+	// Add multiple versions
+	err := kvStore.Set("key", "value1", 0)
 	if err != nil {
-		return fmt.Errorf("failed to create GCM: %v", err)
+		t.Fatalf("Failed to set initial value: %v", err)
 	}
-
-	nonce := make([]byte, gcm.NonceSize())
-	plaintext, err := json.Marshal(data)
+	err = kvStore.Set("key", "value2", 0)
 	if err != nil {
-		return fmt.Errorf("failed to marshal data: %v", err)
+		t.Fatalf("Failed to set second value: %v", err)
+	}
+	err = kvStore.Set("key", "value3", 0)
+	if err != nil {
+		t.Fatalf("Failed to set third value: %v", err)
 	}
 
-	// Compress the data
-	var compressedData bytes.Buffer
-	writer := zlib.NewWriter(&compressedData)
-	if _, err := writer.Write(plaintext); err != nil {
-		return fmt.Errorf("failed to compress data: %v", err)
-	}
-	writer.Close()
-
-	// Encrypt the compressed data
-	ciphertext := gcm.Seal(nonce, nonce, compressedData.Bytes(), nil)
-	encoded := base64.StdEncoding.EncodeToString(ciphertext)
-
-	if _, err := file.Write([]byte(encoded)); err != nil {
-		return fmt.Errorf("failed to write encrypted data to file: %v", err)
+	// Test
+	v1, err := kvStore.GetVersion("key", 0)
+	if err != nil || v1 != "value1" {
+		t.Errorf("Expected value1 at version 0, got %s", v1)
 	}
 
-	return nil
+	v3, err := kvStore.GetVersion("key", 2)
+	if err != nil || v3 != "value3" {
+		t.Errorf("Expected value3 at version 2, got %s", v3)
+	}
+
+	// Test non-existent version
+	_, err = kvStore.GetVersion("key", 3)
+	if err == nil {
+		t.Error("Expected error for non-existent version")
+	}
+}
+
+func TestGetAllVersions(t *testing.T) {
+	filePath := "test_get_all_versions.json"
+	defer os.Remove(filePath) // Supprimez le fichier après le test
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	defer kvStore.Stop()
+
+	// Add multiple versions
+	err := kvStore.Set("key", "value1", 0)
+	if err != nil {
+		t.Fatalf("Failed to set initial value: %v", err)
+	}
+	err = kvStore.Set("key", "value2", 0)
+	if err != nil {
+		t.Fatalf("Failed to set second value: %v", err)
+	}
+	err = kvStore.Set("key", "value3", 0)
+	if err != nil {
+		t.Fatalf("Failed to set third value: %v", err)
+	}
+
+	// Test retrieving all versions
+	versions, err := kvStore.GetAllVersions("key")
+	if err != nil {
+		t.Fatalf("Failed to get all versions: %v", err)
+	}
+	if len(versions) != 3 {
+		t.Errorf("Expected 3 versions, got %d", len(versions))
+	}
+	if versions[0] != "value1" || versions[1] != "value2" || versions[2] != "value3" {
+		t.Errorf("Expected versions [value1, value2, value3], got %v", versions)
+	}
+}
+
+func TestGetHistory(t *testing.T) {
+	filePath := "test_get_history.json"
+	defer os.Remove(filePath) // Supprimez le fichier après le test
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	defer kvStore.Stop()
+
+	// Add multiple versions
+	err := kvStore.Set("key", "value1", 0)
+	if err != nil {
+		t.Fatalf("Failed to set initial value: %v", err)
+	}
+	time.Sleep(1 * time.Second)
+	err = kvStore.Set("key", "value2", 0)
+	if err != nil {
+		t.Fatalf("Failed to set second value: %v", err)
+	}
+	time.Sleep(1 * time.Second)
+	err = kvStore.Set("key", "value3", 0)
+	if err != nil {
+		t.Fatalf("Failed to set third value: %v", err)
+	}
+
+	// Test retrieving history
+	history, err := kvStore.GetHistory("key")
+	if err != nil {
+		t.Fatalf("Failed to get history: %v", err)
+	}
+	if len(history) != 3 {
+		t.Errorf("Expected 3 history entries, got %d", len(history))
+	}
+	if history[0].Value != "value1" || history[1].Value != "value2" || history[2].Value != "value3" {
+		t.Errorf("Expected history values [value1, value2, value3], got %v", history)
+	}
+}
+func TestRemoveVersion(t *testing.T) {
+	filePath := "test_remove_version.json"
+	defer os.Remove(filePath) // Supprimez le fichier après le test
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	defer kvStore.Stop()
+
+	// Add multiple versions
+	err := kvStore.Set("key", "value1", 0)
+	if err != nil {
+		t.Fatalf("Failed to set initial value: %v", err)
+	}
+	err = kvStore.Set("key", "value2", 0)
+	if err != nil {
+		t.Fatalf("Failed to set second value: %v", err)
+	}
+	err = kvStore.Set("key", "value3", 0)
+	if err != nil {
+		t.Fatalf("Failed to set third value: %v", err)
+	}
+
+	// Remove the second version
+	err = kvStore.RemoveVersion("key", 1)
+	if err != nil {
+		t.Fatalf("Failed to remove version 1: %v", err)
+	}
+
+	// Test retrieving remaining versions
+	versions, err := kvStore.GetAllVersions("key")
+	if err != nil {
+		t.Fatalf("Failed to get all versions: %v", err)
+	}
+	if len(versions) != 2 {
+		t.Errorf("Expected 2 versions, got %d", len(versions))
+	}
+	if versions[0] != "value1" || versions[1] != "value3" {
+		t.Errorf("Expected versions [value1, value3], got %v", versions)
+	}
+}
+
+func TestGetHistoryWithTimestamps(t *testing.T) {
+	filePath := "test_get_history.json"
+	defer os.Remove(filePath) // Delete the file after the test
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	defer kvStore.Stop()
+
+	// Add multiple versions
+	err := kvStore.Set("key", "value1", 0)
+	if err != nil {
+		t.Fatalf("Failed to set initial value: %v", err)
+	}
+	t1 := time.Now()
+	time.Sleep(1 * time.Second)
+	err = kvStore.Set("key", "value2", 0)
+	if err != nil {
+		t.Fatalf("Failed to set second value: %v", err)
+	}
+	t2 := time.Now()
+	time.Sleep(1 * time.Second)
+	err = kvStore.Set("key", "value3", 0)
+	if err != nil {
+		t.Fatalf("Failed to set third value: %v", err)
+	}
+	t3 := time.Now()
+
+	// Test retrieving history
+	history, err := kvStore.GetHistory("key")
+	if err != nil {
+		t.Fatalf("Failed to get history: %v", err)
+	}
+	if len(history) != 3 {
+		t.Errorf("Expected 3 history entries, got %d", len(history))
+	}
+	if history[0].Value != "value1" || history[1].Value != "value2" || history[2].Value != "value3" {
+		t.Errorf("Expected history values [value1, value2, value3], got %v", history)
+	}
+
+	// Validate timestamps are in correct order and close to expected times
+	if !t1.Before(history[1].Timestamp) || !history[1].Timestamp.Before(t2) || !t2.Before(history[2].Timestamp) || !history[2].Timestamp.Before(t3) {
+		t.Errorf("Timestamps are not in correct order or close to expected times")
+	}
 }
