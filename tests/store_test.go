@@ -485,3 +485,84 @@ func TestGetHistory(t *testing.T) {
 		t.Errorf("Expected history values [value1, value2, value3], got %v", history)
 	}
 }
+func TestRemoveVersion(t *testing.T) {
+	filePath := "test_remove_version.json"
+	defer os.Remove(filePath) // Supprimez le fichier après le test
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	defer kvStore.Stop()
+
+	// Add multiple versions
+	err := kvStore.Set("key", "value1", 0)
+	if err != nil {
+		t.Fatalf("Failed to set initial value: %v", err)
+	}
+	err = kvStore.Set("key", "value2", 0)
+	if err != nil {
+		t.Fatalf("Failed to set second value: %v", err)
+	}
+	err = kvStore.Set("key", "value3", 0)
+	if err != nil {
+		t.Fatalf("Failed to set third value: %v", err)
+	}
+
+	// Remove the second version
+	err = kvStore.RemoveVersion("key", 1)
+	if err != nil {
+		t.Fatalf("Failed to remove version 1: %v", err)
+	}
+
+	// Test retrieving remaining versions
+	versions, err := kvStore.GetAllVersions("key")
+	if err != nil {
+		t.Fatalf("Failed to get all versions: %v", err)
+	}
+	if len(versions) != 2 {
+		t.Errorf("Expected 2 versions, got %d", len(versions))
+	}
+	if versions[0] != "value1" || versions[1] != "value3" {
+		t.Errorf("Expected versions [value1, value3], got %v", versions)
+	}
+}
+
+func TestGetHistoryWithTimestamps(t *testing.T) {
+	filePath := "test_get_history.json"
+	defer os.Remove(filePath) // Delete the file after the test
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	defer kvStore.Stop()
+
+	// Add multiple versions
+	err := kvStore.Set("key", "value1", 0)
+	if err != nil {
+		t.Fatalf("Failed to set initial value: %v", err)
+	}
+	t1 := time.Now()
+	time.Sleep(1 * time.Second)
+	err = kvStore.Set("key", "value2", 0)
+	if err != nil {
+		t.Fatalf("Failed to set second value: %v", err)
+	}
+	t2 := time.Now()
+	time.Sleep(1 * time.Second)
+	err = kvStore.Set("key", "value3", 0)
+	if err != nil {
+		t.Fatalf("Failed to set third value: %v", err)
+	}
+	t3 := time.Now()
+
+	// Test retrieving history
+	history, err := kvStore.GetHistory("key")
+	if err != nil {
+		t.Fatalf("Failed to get history: %v", err)
+	}
+	if len(history) != 3 {
+		t.Errorf("Expected 3 history entries, got %d", len(history))
+	}
+	if history[0].Value != "value1" || history[1].Value != "value2" || history[2].Value != "value3" {
+		t.Errorf("Expected history values [value1, value2, value3], got %v", history)
+	}
+
+	// Validate timestamps are in correct order and close to expected times
+	if !t1.Before(history[1].Timestamp) || !history[1].Timestamp.Before(t2) || !t2.Before(history[2].Timestamp) || !history[2].Timestamp.Before(t3) {
+		t.Errorf("Timestamps are not in correct order or close to expected times")
+	}
+}

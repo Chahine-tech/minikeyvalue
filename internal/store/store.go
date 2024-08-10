@@ -62,6 +62,7 @@ func (kv *KeyValueStore) Stop() {
 }
 
 // Set sets a key-value pair in the store with an optional TTL.
+// If the key already exists, it will append the new value as a new version.
 func (kv *KeyValueStore) Set(key, value string, expiration time.Duration) error {
 	kv.Lock()
 	defer kv.Unlock()
@@ -82,7 +83,8 @@ func (kv *KeyValueStore) Set(key, value string, expiration time.Duration) error 
 	return nil
 }
 
-// Get retrieves the value for a given key from the store.
+// Get retrieves the latest value for a given key from the store.
+// If the key has expired, it will return an error.
 func (kv *KeyValueStore) Get(key string) (string, error) {
 	kv.RLock()
 	defer kv.RUnlock()
@@ -136,6 +138,23 @@ func (kv *KeyValueStore) GetHistory(key string) ([]KeyValue, error) {
 		return values, nil
 	}
 	return nil, errors.New("key not found")
+}
+
+// RemoveVersion removes a specific version of a given key from the store.
+func (kv *KeyValueStore) RemoveVersion(key string, version int) error {
+	kv.Lock()
+	defer kv.Unlock()
+
+	versions, exists := kv.data[key]
+	if !exists {
+		return errors.New("key not found")
+	}
+	if version >= len(versions) {
+		return errors.New("version not found")
+	}
+
+	kv.data[key] = append(versions[:version], versions[version+1:]...)
+	return nil
 }
 
 // CompareAndSwap compares and swaps the value of a key if the current value matches the expected value.
