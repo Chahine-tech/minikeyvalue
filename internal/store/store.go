@@ -112,6 +112,32 @@ func (kv *KeyValueStore) GetVersion(key string, version int) (string, error) {
 	return versions[version].Value, nil
 }
 
+// GetAllVersions retrieves all versions for a given key from the store.
+func (kv *KeyValueStore) GetAllVersions(key string) ([]string, error) {
+	kv.RLock()
+	defer kv.RUnlock()
+
+	if values, exists := kv.data[key]; exists {
+		result := make([]string, len(values))
+		for i, kv := range values {
+			result[i] = kv.Value
+		}
+		return result, nil
+	}
+	return nil, errors.New("key not found")
+}
+
+// GetHistory retrieves the version history for a given key from the store.
+func (kv *KeyValueStore) GetHistory(key string) ([]KeyValue, error) {
+	kv.RLock()
+	defer kv.RUnlock()
+
+	if values, exists := kv.data[key]; exists {
+		return values, nil
+	}
+	return nil, errors.New("key not found")
+}
+
 // CompareAndSwap compares and swaps the value of a key if the current value matches the expected value.
 func (kv *KeyValueStore) CompareAndSwap(key string, oldValue, newValue string, ttl time.Duration) (bool, error) {
 	kv.Lock()
