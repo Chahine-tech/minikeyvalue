@@ -26,17 +26,21 @@ type KeyValueStore struct {
 	stopChan       chan struct{}
 	cleanupStopped chan struct{}
 	stopOnce       sync.Once
+
+	//Notification Manager
+	notificationManager *NotificationManager
 }
 
 // NewKeyValueStore creates a new KeyValueStore instance and loads data from file if it exists.
 func NewKeyValueStore(filePath string, encryptionKey []byte) *KeyValueStore {
 	kv := &KeyValueStore{
-		data:           make(map[string][]KeyValue),
-		expirations:    make(map[string]time.Time),
-		filePath:       filePath,
-		encryptionKey:  encryptionKey,
-		stopChan:       make(chan struct{}),
-		cleanupStopped: make(chan struct{}),
+		data:                make(map[string][]KeyValue),
+		expirations:         make(map[string]time.Time),
+		filePath:            filePath,
+		encryptionKey:       encryptionKey,
+		stopChan:            make(chan struct{}),
+		cleanupStopped:      make(chan struct{}),
+		notificationManager: NewNotificationManager(),
 	}
 
 	if err := kv.load(); err != nil {
@@ -46,6 +50,10 @@ func NewKeyValueStore(filePath string, encryptionKey []byte) *KeyValueStore {
 	go kv.cleanupExpiredItems()
 
 	return kv
+}
+
+func (kv *KeyValueStore) RegisterNotificationListener(listener func(string)) {
+	kv.notificationManager.RegisterListener(listener)
 }
 
 // Stop stops the KeyValueStore instance and saves the data to the file.

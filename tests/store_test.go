@@ -566,3 +566,35 @@ func TestGetHistoryWithTimestamps(t *testing.T) {
 		t.Errorf("Timestamps are not in correct order or close to expected times")
 	}
 }
+
+func TestKeyExpirationNotifications(t *testing.T) {
+	filePath := "test_notifications.json"
+	defer os.Remove(filePath) // Delete the file after the test
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	defer kvStore.Stop()
+
+	notifications := make([]string, 0)
+	done := make(chan struct{})
+
+	kvStore.RegisterNotificationListener(func(expiredKey string) {
+		notifications = append(notifications, expiredKey)
+		if len(notifications) == 1 { // Based on the assumption of a single key test here
+			close(done)
+		}
+	})
+
+	// Add a key with a short TTL
+	err := kvStore.Set("temp-key", "temp-value", 2*time.Second)
+	if err != nil {
+		t.Fatalf("Failed to set a key: %v", err)
+	}
+
+	select {
+	case <-done:
+		if len(notifications) != 1 || notifications[0] != "temp-key" {
+			t.Errorf("Expected notification for 'temp-key', got %v", notifications)
+		}
+	case <-time.After(5 * time.Second):
+		t.Errorf("Timeout waiting for key expiration notification")
+	}
+}
