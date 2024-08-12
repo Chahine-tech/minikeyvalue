@@ -33,7 +33,7 @@ func TestKeyValueStore(t *testing.T) {
 	defer os.Remove(filePath) // Supprimez le fichier après le test
 
 	// Initialize KeyValueStore
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 
 	// Ensure we clean up and persist data
 	defer kvStore.Stop()
@@ -58,7 +58,7 @@ func TestKeyValueStore(t *testing.T) {
 
 	// Restart the KeyValueStore to ensure data is persisted correctly
 	kvStore.Stop()
-	kvStore = store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore = store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 
 	// Test Get operation again for key 'name' after restart
 	value, err = kvStore.Get("name")
@@ -79,7 +79,7 @@ func TestCleanupExpiredItems(t *testing.T) {
 	const persistenceFile = "test_kvstore_cleanup.json"
 	defer os.Remove(persistenceFile) // Supprimez le fichier après le test
 
-	kv := store.NewKeyValueStore(persistenceFile, encryptionKey)
+	kv := store.NewKeyValueStore(persistenceFile, encryptionKey, 1*time.Second)
 	defer kv.Stop()
 
 	if err := kv.Set("temp", "data", 1*time.Second); err != nil {
@@ -99,7 +99,7 @@ func TestKeyValueStoreConcurrency(t *testing.T) {
 	const persistenceFile = "test_kvstore_concurrency.json"
 	defer os.Remove(persistenceFile) // Supprimez le fichier après le test
 
-	kv := store.NewKeyValueStore(persistenceFile, encryptionKey)
+	kv := store.NewKeyValueStore(persistenceFile, encryptionKey, 1*time.Second)
 	defer kv.Stop()
 
 	var wg sync.WaitGroup
@@ -134,7 +134,7 @@ func TestCompareAndSwapConcurrency(t *testing.T) {
 	filePath := "test_store_cas_concurrency.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
 
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 	defer kvStore.Stop()
 
 	err := kvStore.Set("key1", "value1", 0)
@@ -168,7 +168,7 @@ func TestCompressionAndEncryption(t *testing.T) {
 	filePath := "test_compression_encryption.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
 
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 	defer kvStore.Stop()
 
 	// Set a value and check if it can be retrieved correctly
@@ -187,7 +187,7 @@ func TestCompressionAndEncryption(t *testing.T) {
 
 	// Restart the KeyValueStore to ensure data is persisted and correctly loaded
 	kvStore.Stop()
-	kvStore = store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore = store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 
 	value, err = kvStore.Get("key1")
 	if err != nil {
@@ -202,7 +202,7 @@ func TestKeyValueStoreWithCompressionAndEncryption(t *testing.T) {
 	filePath := "test_store_compression_encryption.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
 
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 	defer kvStore.Stop()
 
 	// Test Set and Get operations
@@ -256,7 +256,7 @@ func TestLargeDataCompressionAndEncryption(t *testing.T) {
 	filePath := "test_large_data_compression_encryption.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
 
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 	defer kvStore.Stop()
 
 	largeValue := make([]byte, 10*1024*1024) // 10 MB of data
@@ -282,7 +282,7 @@ func TestNonCompressibleData(t *testing.T) {
 	filePath := "test_non_compressible_data.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
 
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 	defer kvStore.Stop()
 
 	nonCompressibleValue := "abcdefghijklmnopqrstuvwxyz0123456789" // Example of non-compressible data
@@ -305,7 +305,7 @@ func TestHighlyCompressibleData(t *testing.T) {
 	filePath := "test_highly_compressible_data.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
 
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 	defer kvStore.Stop()
 
 	highlyCompressibleValue := strings.Repeat("a", 10000) // Highly compressible data
@@ -341,7 +341,7 @@ func TestNewDataFormat(t *testing.T) {
 	}
 
 	// Initialize new KeyValueStore
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 	defer kvStore.Stop()
 
 	// Test if new data is readable
@@ -383,7 +383,7 @@ func saveNewFormat(filePath string, newData map[string][]store.KeyValue, encrypt
 func TestGetVersion(t *testing.T) {
 	filePath := "test_get_version.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 	defer kvStore.Stop()
 
 	// Add multiple versions
@@ -421,7 +421,7 @@ func TestGetVersion(t *testing.T) {
 func TestGetAllVersions(t *testing.T) {
 	filePath := "test_get_all_versions.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 	defer kvStore.Stop()
 
 	// Add multiple versions
@@ -454,7 +454,7 @@ func TestGetAllVersions(t *testing.T) {
 func TestGetHistory(t *testing.T) {
 	filePath := "test_get_history.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 	defer kvStore.Stop()
 
 	// Add multiple versions
@@ -488,7 +488,7 @@ func TestGetHistory(t *testing.T) {
 func TestRemoveVersion(t *testing.T) {
 	filePath := "test_remove_version.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 	defer kvStore.Stop()
 
 	// Add multiple versions
@@ -527,7 +527,7 @@ func TestRemoveVersion(t *testing.T) {
 func TestGetHistoryWithTimestamps(t *testing.T) {
 	filePath := "test_get_history.json"
 	defer os.Remove(filePath) // Delete the file after the test
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 	defer kvStore.Stop()
 
 	// Add multiple versions
@@ -570,7 +570,7 @@ func TestGetHistoryWithTimestamps(t *testing.T) {
 func TestKeyExpirationNotifications(t *testing.T) {
 	filePath := "test_notifications.json"
 	defer os.Remove(filePath) // Delete the file after the test
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 	defer kvStore.Stop()
 
 	notifications := make([]string, 0)

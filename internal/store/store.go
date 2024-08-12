@@ -32,7 +32,7 @@ type KeyValueStore struct {
 }
 
 // NewKeyValueStore creates a new KeyValueStore instance and loads data from file if it exists.
-func NewKeyValueStore(filePath string, encryptionKey []byte) *KeyValueStore {
+func NewKeyValueStore(filePath string, encryptionKey []byte, tickerInterval time.Duration) *KeyValueStore {
 	kv := &KeyValueStore{
 		data:                make(map[string][]KeyValue),
 		expirations:         make(map[string]time.Time),
@@ -47,7 +47,7 @@ func NewKeyValueStore(filePath string, encryptionKey []byte) *KeyValueStore {
 		log.Printf("Failed to load data: %v\n", err)
 	}
 
-	go kv.cleanupExpiredItems()
+	go kv.cleanupExpiredItems(tickerInterval)
 
 	return kv
 }
