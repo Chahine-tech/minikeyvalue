@@ -75,8 +75,12 @@ func (kv *KeyValueStore) Set(key, value string, expiration time.Duration) error 
 	kv.Lock()
 	defer kv.Unlock()
 
-	log.Printf("Set: Acquired lock for key '%s'\n", key)
+	updated := false
 	now := time.Now()
+	if _, exists := kv.data[key]; exists {
+		updated = true
+	}
+
 	kv.data[key] = append(kv.data[key], KeyValue{
 		Value:     value,
 		Timestamp: now,
@@ -86,6 +90,12 @@ func (kv *KeyValueStore) Set(key, value string, expiration time.Duration) error 
 		kv.expirations[key] = now.Add(expiration)
 	} else {
 		delete(kv.expirations, key)
+	}
+
+	if updated {
+		kv.notificationManager.NotifyUpdate(key)
+	} else {
+		kv.notificationManager.NotifyAdd(key)
 	}
 
 	return nil
@@ -201,10 +211,14 @@ func (kv *KeyValueStore) Delete(key string) error {
 	kv.Lock()
 	defer kv.Unlock()
 
-	log.Printf("Delete: Acquired lock for key '%s'\n", key)
+	if _, exists := kv.data[key]; !exists {
+		return errors.New("key not found")
+	}
+
 	delete(kv.data, key)
 	delete(kv.expirations, key)
-	log.Printf("Delete: Released lock for key '%s'\n", key)
+	kv.notificationManager.NotifyDelete(key)
+
 	return nil
 }
 

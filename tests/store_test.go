@@ -568,7 +568,7 @@ func TestGetHistoryWithTimestamps(t *testing.T) {
 }
 
 func TestKeyExpirationNotifications(t *testing.T) {
-	filePath := "test_notifications.json"
+	filePath := "test_key_expiration.json"
 	defer os.Remove(filePath) // Delete the file after the test
 	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
 	defer kvStore.Stop()
@@ -576,14 +576,18 @@ func TestKeyExpirationNotifications(t *testing.T) {
 	notifications := make([]string, 0)
 	done := make(chan struct{})
 
-	kvStore.RegisterNotificationListener(func(expiredKey string) {
-		notifications = append(notifications, expiredKey)
-		if len(notifications) == 1 { // Based on the assumption of a single key test here
-			close(done)
+	kvStore.RegisterNotificationListener(func(event string) {
+		log.Printf("Received notification: %s", event)
+		if len(event) > 0 && event[:8] == "expired:" { // Ajuster filtre basé sur "expired:key"
+			notifications = append(notifications, event[8:])
+			if len(notifications) == 1 { // Based on the assumption of a single key test here
+				close(done)
+			}
 		}
 	})
 
 	// Add a key with a short TTL
+	log.Println("Adding key with TTL")
 	err := kvStore.Set("temp-key", "temp-value", 2*time.Second)
 	if err != nil {
 		t.Fatalf("Failed to set a key: %v", err)
@@ -596,5 +600,60 @@ func TestKeyExpirationNotifications(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Errorf("Timeout waiting for key expiration notification")
+	}
+}
+
+func TestMultipleNotifications(t *testing.T) {
+	filePath := "test_multiple_notifications.json"
+	defer os.Remove(filePath) // Supprimez le fichier après le test
+	tickerInterval := 1 * time.Second
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, tickerInterval)
+	defer kvStore.Stop()
+
+	notifications := make([]string, 0)
+	done := make(chan struct{})
+
+	kvStore.RegisterNotificationListener(func(event string) {
+		log.Printf("Received notification: %s", event)
+		notifications = append(notifications, event)
+		if len(notifications) == 3 {
+			close(done)
+		}
+	})
+
+	// Add a key
+	log.Println("Adding key")
+	err := kvStore.Set("temp-key", "temp-value", 5*time.Second)
+	if err != nil {
+		t.Fatalf("Failed to set a key: %v", err)
+	}
+
+	// Update the key
+	log.Println("Updating key")
+	err = kvStore.Set("temp-key", "new-value", 5*time.Second)
+	if err != nil {
+		t.Fatalf("Failed to update the key: %v", err)
+	}
+
+	// Delete the key
+	log.Println("Deleting key")
+	err = kvStore.Delete("temp-key")
+	if err != nil {
+		t.Fatalf("Failed to delete the key: %v", err)
+	}
+
+	select {
+	case <-done:
+		log.Println("Received all expected notifications")
+		expectedNotifications := []string{"added:temp-key", "updated:temp-key", "deleted:temp-key"}
+		for i, expected := range expectedNotifications {
+			log.Printf("Checking notification: %s == %s ?", expected, notifications[i])
+			if notifications[i] != expected {
+				t.Errorf("Expected notification %s, got %s", expected, notifications[i])
+			}
+		}
+	case <-time.After(10 * time.Second):
+		log.Println("Timeout waiting for notifications")
+		t.Errorf("Timeout waiting for notifications")
 	}
 }
