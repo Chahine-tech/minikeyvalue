@@ -12,7 +12,7 @@ func main() {
 	filePath := "data.json"
 	encryptionKey := []byte("encryptionKey")
 
-	kv := store.NewKeyValueStore(filePath, encryptionKey)
+	kv := store.NewKeyValueStore(filePath, encryptionKey, 5*time.Second)
 	defer kv.Stop()
 
 	err := kv.Set("key1", "value1", 0)

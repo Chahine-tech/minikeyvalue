@@ -26,26 +26,34 @@ type KeyValueStore struct {
 	stopChan       chan struct{}
 	cleanupStopped chan struct{}
 	stopOnce       sync.Once
+
+	//Notification Manager
+	notificationManager *NotificationManager
 }
 
 // NewKeyValueStore creates a new KeyValueStore instance and loads data from file if it exists.
-func NewKeyValueStore(filePath string, encryptionKey []byte) *KeyValueStore {
+func NewKeyValueStore(filePath string, encryptionKey []byte, tickerInterval time.Duration) *KeyValueStore {
 	kv := &KeyValueStore{
-		data:           make(map[string][]KeyValue),
-		expirations:    make(map[string]time.Time),
-		filePath:       filePath,
-		encryptionKey:  encryptionKey,
-		stopChan:       make(chan struct{}),
-		cleanupStopped: make(chan struct{}),
+		data:                make(map[string][]KeyValue),
+		expirations:         make(map[string]time.Time),
+		filePath:            filePath,
+		encryptionKey:       encryptionKey,
+		stopChan:            make(chan struct{}),
+		cleanupStopped:      make(chan struct{}),
+		notificationManager: NewNotificationManager(),
 	}
 
 	if err := kv.load(); err != nil {
 		log.Printf("Failed to load data: %v\n", err)
 	}
 
-	go kv.cleanupExpiredItems()
+	go kv.cleanupExpiredItems(tickerInterval)
 
 	return kv
+}
+
+func (kv *KeyValueStore) RegisterNotificationListener(listener func(string)) {
+	kv.notificationManager.RegisterListener(listener)
 }
 
 // Stop stops the KeyValueStore instance and saves the data to the file.
@@ -67,8 +75,12 @@ func (kv *KeyValueStore) Set(key, value string, expiration time.Duration) error 
 	kv.Lock()
 	defer kv.Unlock()
 
-	log.Printf("Set: Acquired lock for key '%s'\n", key)
+	updated := false
 	now := time.Now()
+	if _, exists := kv.data[key]; exists {
+		updated = true
+	}
+
 	kv.data[key] = append(kv.data[key], KeyValue{
 		Value:     value,
 		Timestamp: now,
@@ -80,6 +92,12 @@ func (kv *KeyValueStore) Set(key, value string, expiration time.Duration) error 
 		delete(kv.expirations, key)
 	}
 
+	if updated {
+		kv.notificationManager.NotifyUpdate(key)
+	} else {
+		kv.notificationManager.NotifyAdd(key)
+	}
+
 	return nil
 }
 
@@ -89,7 +107,6 @@ func (kv *KeyValueStore) Get(key string) (string, error) {
 	kv.RLock()
 	defer kv.RUnlock()
 
-	log.Printf("Get: Acquired RLock for key '%s'\n", key)
 	values, exists := kv.data[key]
 	if !exists || len(values) == 0 {
 		return "", errors.New("key not found")
@@ -97,7 +114,6 @@ func (kv *KeyValueStore) Get(key string) (string, error) {
 	if exp, ok := kv.expirations[key]; ok && time.Now().After(exp) {
 		return "", errors.New("key expired")
 	}
-	log.Printf("Get: Released RLock for key '%s'\n", key)
 	return values[len(values)-1].Value, nil
 }
 
@@ -162,7 +178,6 @@ func (kv *KeyValueStore) CompareAndSwap(key string, oldValue, newValue string, t
 	kv.Lock()
 	defer kv.Unlock()
 
-	log.Printf("CompareAndSwap: Acquired lock for key '%s'\n", key)
 	values, exists := kv.data[key]
 	if !exists || len(values) == 0 {
 		log.Printf("CompareAndSwap: Key '%s' not found\n", key)
@@ -184,7 +199,6 @@ func (kv *KeyValueStore) CompareAndSwap(key string, oldValue, newValue string, t
 	} else {
 		delete(kv.expirations, key)
 	}
-	log.Printf("CompareAndSwap: Released lock for key '%s'\n", key)
 	return true, nil
 }
 
@@ -193,10 +207,14 @@ func (kv *KeyValueStore) Delete(key string) error {
 	kv.Lock()
 	defer kv.Unlock()
 
-	log.Printf("Delete: Acquired lock for key '%s'\n", key)
+	if _, exists := kv.data[key]; !exists {
+		return errors.New("key not found")
+	}
+
 	delete(kv.data, key)
 	delete(kv.expirations, key)
-	log.Printf("Delete: Released lock for key '%s'\n", key)
+	kv.notificationManager.NotifyDelete(key)
+
 	return nil
 }
 
@@ -263,7 +281,6 @@ func (kv *KeyValueStore) load() error {
 	kv.Lock()
 	defer kv.Unlock()
 
-	log.Println("Load: Acquired lock")
 	file, err := os.Open(kv.filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
