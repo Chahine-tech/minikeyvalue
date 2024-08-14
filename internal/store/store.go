@@ -107,7 +107,6 @@ func (kv *KeyValueStore) Get(key string) (string, error) {
 	kv.RLock()
 	defer kv.RUnlock()
 
-	log.Printf("Get: Acquired RLock for key '%s'\n", key)
 	values, exists := kv.data[key]
 	if !exists || len(values) == 0 {
 		return "", errors.New("key not found")
@@ -115,7 +114,6 @@ func (kv *KeyValueStore) Get(key string) (string, error) {
 	if exp, ok := kv.expirations[key]; ok && time.Now().After(exp) {
 		return "", errors.New("key expired")
 	}
-	log.Printf("Get: Released RLock for key '%s'\n", key)
 	return values[len(values)-1].Value, nil
 }
 
@@ -180,7 +178,6 @@ func (kv *KeyValueStore) CompareAndSwap(key string, oldValue, newValue string, t
 	kv.Lock()
 	defer kv.Unlock()
 
-	log.Printf("CompareAndSwap: Acquired lock for key '%s'\n", key)
 	values, exists := kv.data[key]
 	if !exists || len(values) == 0 {
 		log.Printf("CompareAndSwap: Key '%s' not found\n", key)
@@ -202,7 +199,6 @@ func (kv *KeyValueStore) CompareAndSwap(key string, oldValue, newValue string, t
 	} else {
 		delete(kv.expirations, key)
 	}
-	log.Printf("CompareAndSwap: Released lock for key '%s'\n", key)
 	return true, nil
 }
 
@@ -285,7 +281,6 @@ func (kv *KeyValueStore) load() error {
 	kv.Lock()
 	defer kv.Unlock()
 
-	log.Println("Load: Acquired lock")
 	file, err := os.Open(kv.filePath)
 	if err != nil {
 		if os.IsNotExist(err) {

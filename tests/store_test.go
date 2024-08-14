@@ -577,7 +577,6 @@ func TestKeyExpirationNotifications(t *testing.T) {
 	done := make(chan struct{})
 
 	kvStore.RegisterNotificationListener(func(event string) {
-		log.Printf("Received notification: %s", event)
 		if len(event) > 0 && event[:8] == "expired:" { // Ajuster filtre basé sur "expired:key"
 			notifications = append(notifications, event[8:])
 			if len(notifications) == 1 { // Based on the assumption of a single key test here
@@ -586,8 +585,6 @@ func TestKeyExpirationNotifications(t *testing.T) {
 		}
 	})
 
-	// Add a key with a short TTL
-	log.Println("Adding key with TTL")
 	err := kvStore.Set("temp-key", "temp-value", 2*time.Second)
 	if err != nil {
 		t.Fatalf("Failed to set a key: %v", err)
@@ -622,21 +619,20 @@ func TestMultipleNotifications(t *testing.T) {
 	})
 
 	// Add a key
-	log.Println("Adding key")
 	err := kvStore.Set("temp-key", "temp-value", 5*time.Second)
 	if err != nil {
 		t.Fatalf("Failed to set a key: %v", err)
 	}
 
 	// Update the key
-	log.Println("Updating key")
+
 	err = kvStore.Set("temp-key", "new-value", 5*time.Second)
 	if err != nil {
 		t.Fatalf("Failed to update the key: %v", err)
 	}
 
 	// Delete the key
-	log.Println("Deleting key")
+
 	err = kvStore.Delete("temp-key")
 	if err != nil {
 		t.Fatalf("Failed to delete the key: %v", err)
@@ -644,7 +640,6 @@ func TestMultipleNotifications(t *testing.T) {
 
 	select {
 	case <-done:
-		log.Println("Received all expected notifications")
 		expectedNotifications := []string{"added:temp-key", "updated:temp-key", "deleted:temp-key"}
 		for i, expected := range expectedNotifications {
 			log.Printf("Checking notification: %s == %s ?", expected, notifications[i])
@@ -653,7 +648,6 @@ func TestMultipleNotifications(t *testing.T) {
 			}
 		}
 	case <-time.After(10 * time.Second):
-		log.Println("Timeout waiting for notifications")
 		t.Errorf("Timeout waiting for notifications")
 	}
 }
