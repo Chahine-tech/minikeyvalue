@@ -824,3 +824,42 @@ func TestDeleteConcurrency(t *testing.T) {
 		}
 	}
 }
+
+func TestLazyLoading(t *testing.T) {
+	filePath := "test_lazy_loading.json"
+	defer os.Remove(filePath) // Supprimez le fichier après le test
+
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 2*time.Minute, 1*time.Second)
+	defer kvStore.Stop()
+
+	if kvStore.Loaded() {
+		t.Fatalf("Data should not be loaded initially")
+	}
+
+	// Test Get operation triggers loading
+	_, err := kvStore.Get("nonexistent")
+	if err == nil || !strings.Contains(err.Error(), "key not found") {
+		t.Fatalf("Expected error getting nonexistent key, got %v", err)
+	}
+
+	if !kvStore.Loaded() {
+		t.Fatalf("Data should be loaded after a Get operation")
+	}
+
+	// Reset for Set operation test
+	kvStore = store.NewKeyValueStore(filePath, encryptionKey, 2*time.Minute, 1*time.Second)
+	defer kvStore.Stop()
+
+	if kvStore.Loaded() {
+		t.Fatalf("Data should not be loaded initially")
+	}
+
+	err = kvStore.Set("key1", "value1", 0)
+	if err != nil {
+		t.Fatalf("Failed to set key: %v", err)
+	}
+
+	if !kvStore.Loaded() {
+		t.Fatalf("Data should be loaded after a Set operation")
+	}
+}

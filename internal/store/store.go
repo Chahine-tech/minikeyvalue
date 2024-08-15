@@ -27,12 +27,13 @@ type KeyValueStore struct {
 	cleanupStopped chan struct{}
 	stopOnce       sync.Once
 	globalTTL      time.Duration
+	loaded         bool
 
-	//Notification Manager
+	// Notification Manager
 	notificationManager *NotificationManager
 }
 
-// NewKeyValueStore creates a new KeyValueStore instance and loads data from file if it exists.
+// NewKeyValueStore creates a new KeyValueStore instance without loading data initially.
 func NewKeyValueStore(filePath string, encryptionKey []byte, globalTTL time.Duration, tickerInterval time.Duration) *KeyValueStore {
 	kv := &KeyValueStore{
 		data:                make(map[string][]KeyValue),
@@ -45,9 +46,8 @@ func NewKeyValueStore(filePath string, encryptionKey []byte, globalTTL time.Dura
 		notificationManager: NewNotificationManager(),
 	}
 
-	if err := kv.load(); err != nil {
-		log.Printf("Failed to load data: %v\n", err)
-	}
+	// Lazy loading: Data will be loaded only when needed
+	log.Println("NewKeyValueStore: Instance created, lazy loading enabled.")
 
 	go kv.cleanupExpiredItems(tickerInterval)
 
@@ -72,16 +72,17 @@ func (kv *KeyValueStore) Stop() {
 }
 
 // Set sets a key-value pair in the store with an optional TTL.
-// If the key already exists, it will append the new value as a new version.
 func (kv *KeyValueStore) Set(key, value string, expiration time.Duration) error {
+	if err := kv.ensureLoaded(); err != nil {
+		return err
+	}
+
 	now := time.Now()
 
-	// Check if the key exists and needs updating
 	kv.RLock()
 	_, exists := kv.data[key]
 	kv.RUnlock()
 
-	// Use an exclusive lock to make changes
 	kv.Lock()
 	defer kv.Unlock()
 
@@ -112,8 +113,12 @@ func (kv *KeyValueStore) Set(key, value string, expiration time.Duration) error 
 }
 
 // Get retrieves the latest value for a given key from the store.
-// If the key has expired, it will return an error.
 func (kv *KeyValueStore) Get(key string) (string, error) {
+	log.Println("Get: Checking if data is loaded")
+	if err := kv.ensureLoaded(); err != nil {
+		return "", fmt.Errorf("data not loaded: %v", err)
+	}
+
 	kv.RLock()
 	defer kv.RUnlock()
 
@@ -121,9 +126,11 @@ func (kv *KeyValueStore) Get(key string) (string, error) {
 	if !exists || len(values) == 0 {
 		return "", errors.New("key not found")
 	}
+
 	if exp, ok := kv.expirations[key]; ok && time.Now().After(exp) {
 		return "", errors.New("key expired")
 	}
+
 	return values[len(values)-1].Value, nil
 }
 
@@ -288,13 +295,13 @@ func (kv *KeyValueStore) save() error {
 
 // load data from a file with decompression and decryption.
 func (kv *KeyValueStore) load() error {
-	kv.Lock()
-	defer kv.Unlock()
+	log.Println("load: Starting to load data")
 
 	file, err := os.Open(kv.filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Println("Load: No existing file, starting fresh")
+			log.Println("load: No existing file, starting fresh")
+			kv.loaded = true
 			return nil
 		}
 		return fmt.Errorf("error opening file: %v", err)
@@ -321,6 +328,28 @@ func (kv *KeyValueStore) load() error {
 	if err := json.Unmarshal(decompressedData, &kv.data); err != nil {
 		return fmt.Errorf("error unmarshalling data: %v", err)
 	}
-	log.Println("Load: Released lock")
+	log.Println("load: Data loaded successfully")
+	kv.loaded = true
 	return nil
+}
+
+// Ensure data is loaded lazily
+func (kv *KeyValueStore) ensureLoaded() error {
+	kv.Lock()
+	defer kv.Unlock()
+
+	if !kv.loaded {
+		log.Println("ensureLoaded: Triggering load")
+		if err := kv.load(); err != nil {
+			return fmt.Errorf("failed to load data: %v", err)
+		}
+		log.Println("ensureLoaded: Data loaded")
+	}
+	return nil
+}
+
+func (kv *KeyValueStore) Loaded() bool {
+	kv.RLock()
+	defer kv.RUnlock()
+	return kv.loaded
 }
