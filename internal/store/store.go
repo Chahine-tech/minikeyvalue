@@ -74,13 +74,19 @@ func (kv *KeyValueStore) Stop() {
 // Set sets a key-value pair in the store with an optional TTL.
 // If the key already exists, it will append the new value as a new version.
 func (kv *KeyValueStore) Set(key, value string, expiration time.Duration) error {
+	now := time.Now()
+
+	// Check if the key exists and needs updating
+	kv.RLock()
+	_, exists := kv.data[key]
+	kv.RUnlock()
+
+	// Use an exclusive lock to make changes
 	kv.Lock()
 	defer kv.Unlock()
 
-	updated := false
-	now := time.Now()
-	if _, exists := kv.data[key]; exists {
-		updated = true
+	if !exists {
+		kv.data[key] = []KeyValue{}
 	}
 
 	kv.data[key] = append(kv.data[key], KeyValue{
@@ -96,7 +102,7 @@ func (kv *KeyValueStore) Set(key, value string, expiration time.Duration) error 
 		delete(kv.expirations, key)
 	}
 
-	if updated {
+	if exists {
 		kv.notificationManager.NotifyUpdate(key)
 	} else {
 		kv.notificationManager.NotifyAdd(key)

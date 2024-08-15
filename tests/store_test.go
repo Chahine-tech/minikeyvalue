@@ -100,15 +100,11 @@ func TestCleanupExpiredItems(t *testing.T) {
 }
 
 func TestKeyValueStoreConcurrency(t *testing.T) {
-	fmt.Println("Running TestKeyValueStoreConcurrency")
-	const persistenceFile = "test_kvstore_concurrency.json"
-	defer os.Remove(persistenceFile) // Supprimez le fichier après le test
+	filePath := "test_kvstore_concurrency.json"
+	defer os.Remove(filePath) // Remove the file after test
 
-	// Set a global TTL of 10 seconds.
-	globalTTL := 10 * time.Second
-
-	kv := store.NewKeyValueStore(persistenceFile, encryptionKey, 1*time.Second, globalTTL)
-	defer kv.Stop()
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 2*time.Minute, 1*time.Second)
+	defer kvStore.Stop()
 
 	var wg sync.WaitGroup
 
@@ -116,7 +112,7 @@ func TestKeyValueStoreConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			if err := kv.Set(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i), 0); err != nil {
+			if err := kvStore.Set(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i), 0); err != nil {
 				t.Errorf("error setting key 'key%d': %v", i, err)
 			}
 		}(i)
@@ -127,15 +123,13 @@ func TestKeyValueStoreConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			value, err := kv.Get(fmt.Sprintf("key%d", i))
+			value, err := kvStore.Get(fmt.Sprintf("key%d", i))
 			if err != nil || value != fmt.Sprintf("value%d", i) {
 				t.Errorf("expected value 'value%d', got '%v' (error: %v)", i, value, err)
 			}
 		}(i)
 	}
 	wg.Wait()
-
-	fmt.Println("TestKeyValueStoreConcurrency completed")
 }
 
 func TestCompareAndSwapConcurrency(t *testing.T) {
@@ -723,5 +717,110 @@ func TestGlobalTTL(t *testing.T) {
 	_, err = kvStore.Get("key_with_global_ttl")
 	if err == nil {
 		t.Error("Expected key to be expired according to global TTL")
+	}
+}
+
+func TestSetConcurrency(t *testing.T) {
+	filePath := "test_set_concurrency.json"
+	defer os.Remove(filePath) // Remove the file after test
+
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 2*time.Minute, 1*time.Second)
+	defer kvStore.Stop()
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			if err := kvStore.Set(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i), 0); err != nil {
+				t.Errorf("error setting key 'key%d': %v", i, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	for i := 0; i < 100; i++ {
+		value, err := kvStore.Get(fmt.Sprintf("key%d", i))
+		if err != nil {
+			t.Errorf("expected key 'key%d' to be present, got error: %v", i, err)
+		}
+		if value != fmt.Sprintf("value%d", i) {
+			t.Errorf("expected value 'value%d', got '%v'", i, value)
+		}
+	}
+}
+
+func TestGetSetConcurrency(t *testing.T) {
+	filePath := "test_get_set_concurrency.json"
+	defer os.Remove(filePath) // Remove the file after test
+
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 2*time.Minute, 1*time.Second)
+	defer kvStore.Stop()
+
+	var setWG sync.WaitGroup
+	var getWG sync.WaitGroup
+
+	for i := 0; i < 100; i++ {
+		setWG.Add(1)
+		go func(i int) {
+			defer setWG.Done()
+			if err := kvStore.Set(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i), 0); err != nil {
+				t.Errorf("error setting key 'key%d': %v", i, err)
+			}
+		}(i)
+	}
+
+	for i := 0; i < 100; i++ {
+		getWG.Add(1)
+		go func(i int) {
+			defer getWG.Done()
+			if _, err := kvStore.Get(fmt.Sprintf("key%d", i)); err != nil && err.Error() != "key not found" {
+				t.Errorf("error getting key 'key%d': %v", i, err)
+			}
+		}(i)
+	}
+
+	setWG.Wait()
+	getWG.Wait()
+}
+
+func TestDeleteConcurrency(t *testing.T) {
+	filePath := "test_delete_concurrency.json"
+	defer os.Remove(filePath) // Remove the file after test
+
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 2*time.Minute, 1*time.Second)
+	defer kvStore.Stop()
+
+	var setWG sync.WaitGroup
+	var delWG sync.WaitGroup
+
+	for i := 0; i < 100; i++ {
+		setWG.Add(1)
+		go func(i int) {
+			defer setWG.Done()
+			if err := kvStore.Set(fmt.Sprintf("key%d", i), fmt.Sprintf("value%d", i), 0); err != nil {
+				t.Errorf("error setting key 'key%d': %v", i, err)
+			}
+		}(i)
+	}
+	setWG.Wait()
+
+	for i := 0; i < 100; i++ {
+		delWG.Add(1)
+		go func(i int) {
+			defer delWG.Done()
+			if err := kvStore.Delete(fmt.Sprintf("key%d", i)); err != nil && err.Error() != "key not found" {
+				t.Errorf("error deleting key 'key%d': %v", i, err)
+			}
+		}(i)
+	}
+	delWG.Wait()
+
+	for i := 0; i < 100; i++ {
+		_, err := kvStore.Get(fmt.Sprintf("key%d", i))
+		if err == nil {
+			t.Errorf("expected key 'key%d' to be deleted, but it still exists", i)
+		}
 	}
 }

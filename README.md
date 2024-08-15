@@ -17,7 +17,7 @@ MiniKeyValue is a simple, lightweight key-value store written in Go. It provides
 - [X] Add version control for keys
 - [X] Introduce notifications for key expirations
 - [X] Support global TTL configuration
-- [ ] Optimize locking mechanisms
+- [X] Optimize locking mechanisms
 - [ ] Implement lazy loading of data
 - [ ] Key rotation for encryption keys
 - [ ] Add authentication and authorization mechanisms
