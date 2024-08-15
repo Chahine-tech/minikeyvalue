@@ -32,8 +32,10 @@ func TestKeyValueStore(t *testing.T) {
 	// Ensure we clean up and persist data
 	defer os.Remove(filePath) // Supprimez le fichier après le test
 
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
 	// Initialize KeyValueStore
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 
 	// Ensure we clean up and persist data
 	defer kvStore.Stop()
@@ -58,7 +60,7 @@ func TestKeyValueStore(t *testing.T) {
 
 	// Restart the KeyValueStore to ensure data is persisted correctly
 	kvStore.Stop()
-	kvStore = store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+	kvStore = store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 
 	// Test Get operation again for key 'name' after restart
 	value, err = kvStore.Get("name")
@@ -79,7 +81,10 @@ func TestCleanupExpiredItems(t *testing.T) {
 	const persistenceFile = "test_kvstore_cleanup.json"
 	defer os.Remove(persistenceFile) // Supprimez le fichier après le test
 
-	kv := store.NewKeyValueStore(persistenceFile, encryptionKey, 1*time.Second)
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+
+	kv := store.NewKeyValueStore(persistenceFile, encryptionKey, 1*time.Second, globalTTL)
 	defer kv.Stop()
 
 	if err := kv.Set("temp", "data", 1*time.Second); err != nil {
@@ -99,7 +104,10 @@ func TestKeyValueStoreConcurrency(t *testing.T) {
 	const persistenceFile = "test_kvstore_concurrency.json"
 	defer os.Remove(persistenceFile) // Supprimez le fichier après le test
 
-	kv := store.NewKeyValueStore(persistenceFile, encryptionKey, 1*time.Second)
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+
+	kv := store.NewKeyValueStore(persistenceFile, encryptionKey, 1*time.Second, globalTTL)
 	defer kv.Stop()
 
 	var wg sync.WaitGroup
@@ -134,7 +142,10 @@ func TestCompareAndSwapConcurrency(t *testing.T) {
 	filePath := "test_store_cas_concurrency.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
 
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 	defer kvStore.Stop()
 
 	err := kvStore.Set("key1", "value1", 0)
@@ -168,7 +179,10 @@ func TestCompressionAndEncryption(t *testing.T) {
 	filePath := "test_compression_encryption.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
 
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 	defer kvStore.Stop()
 
 	// Set a value and check if it can be retrieved correctly
@@ -187,7 +201,7 @@ func TestCompressionAndEncryption(t *testing.T) {
 
 	// Restart the KeyValueStore to ensure data is persisted and correctly loaded
 	kvStore.Stop()
-	kvStore = store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+	kvStore = store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 
 	value, err = kvStore.Get("key1")
 	if err != nil {
@@ -202,7 +216,10 @@ func TestKeyValueStoreWithCompressionAndEncryption(t *testing.T) {
 	filePath := "test_store_compression_encryption.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
 
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 	defer kvStore.Stop()
 
 	// Test Set and Get operations
@@ -256,7 +273,10 @@ func TestLargeDataCompressionAndEncryption(t *testing.T) {
 	filePath := "test_large_data_compression_encryption.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
 
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 	defer kvStore.Stop()
 
 	largeValue := make([]byte, 10*1024*1024) // 10 MB of data
@@ -282,7 +302,10 @@ func TestNonCompressibleData(t *testing.T) {
 	filePath := "test_non_compressible_data.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
 
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 	defer kvStore.Stop()
 
 	nonCompressibleValue := "abcdefghijklmnopqrstuvwxyz0123456789" // Example of non-compressible data
@@ -305,7 +328,10 @@ func TestHighlyCompressibleData(t *testing.T) {
 	filePath := "test_highly_compressible_data.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
 
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 	defer kvStore.Stop()
 
 	highlyCompressibleValue := strings.Repeat("a", 10000) // Highly compressible data
@@ -340,8 +366,11 @@ func TestNewDataFormat(t *testing.T) {
 		t.Fatalf("Failed to save new format data: %v", err)
 	}
 
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+
 	// Initialize new KeyValueStore
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 	defer kvStore.Stop()
 
 	// Test if new data is readable
@@ -383,7 +412,10 @@ func saveNewFormat(filePath string, newData map[string][]store.KeyValue, encrypt
 func TestGetVersion(t *testing.T) {
 	filePath := "test_get_version.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 	defer kvStore.Stop()
 
 	// Add multiple versions
@@ -421,7 +453,10 @@ func TestGetVersion(t *testing.T) {
 func TestGetAllVersions(t *testing.T) {
 	filePath := "test_get_all_versions.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 	defer kvStore.Stop()
 
 	// Add multiple versions
@@ -454,7 +489,10 @@ func TestGetAllVersions(t *testing.T) {
 func TestGetHistory(t *testing.T) {
 	filePath := "test_get_history.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 	defer kvStore.Stop()
 
 	// Add multiple versions
@@ -488,7 +526,11 @@ func TestGetHistory(t *testing.T) {
 func TestRemoveVersion(t *testing.T) {
 	filePath := "test_remove_version.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 	defer kvStore.Stop()
 
 	// Add multiple versions
@@ -527,7 +569,10 @@ func TestRemoveVersion(t *testing.T) {
 func TestGetHistoryWithTimestamps(t *testing.T) {
 	filePath := "test_get_history.json"
 	defer os.Remove(filePath) // Delete the file after the test
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
 	defer kvStore.Stop()
 
 	// Add multiple versions
@@ -569,27 +614,32 @@ func TestGetHistoryWithTimestamps(t *testing.T) {
 
 func TestKeyExpirationNotifications(t *testing.T) {
 	filePath := "test_key_expiration.json"
-	defer os.Remove(filePath) // Delete the file after the test
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second)
+	defer os.Remove(filePath) // Supprimez le fichier après le test
+
+	// Définissez un TTL global de 10 secondes.
+	globalTTL := 10 * time.Second
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, globalTTL, 1*time.Second)
 	defer kvStore.Stop()
 
 	notifications := make([]string, 0)
 	done := make(chan struct{})
 
 	kvStore.RegisterNotificationListener(func(event string) {
-		if len(event) > 0 && event[:8] == "expired:" { // Ajuster filtre basé sur "expired:key"
+		if len(event) > 0 && event[:8] == "expired:" {
 			notifications = append(notifications, event[8:])
-			if len(notifications) == 1 { // Based on the assumption of a single key test here
+			if len(notifications) == 1 {
 				close(done)
 			}
 		}
 	})
 
+	// Définir la clé avec un expiration de 2 secondes
 	err := kvStore.Set("temp-key", "temp-value", 2*time.Second)
 	if err != nil {
 		t.Fatalf("Failed to set a key: %v", err)
 	}
 
+	// Attendez assez de temps pour que l'expiration et la notification se produisent.
 	select {
 	case <-done:
 		if len(notifications) != 1 || notifications[0] != "temp-key" {
@@ -603,8 +653,11 @@ func TestKeyExpirationNotifications(t *testing.T) {
 func TestMultipleNotifications(t *testing.T) {
 	filePath := "test_multiple_notifications.json"
 	defer os.Remove(filePath) // Supprimez le fichier après le test
+
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
 	tickerInterval := 1 * time.Second
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, tickerInterval)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, tickerInterval, globalTTL)
 	defer kvStore.Stop()
 
 	notifications := make([]string, 0)
@@ -649,5 +702,26 @@ func TestMultipleNotifications(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Errorf("Timeout waiting for notifications")
+	}
+}
+
+func TestGlobalTTL(t *testing.T) {
+	const filePath = "test_global_ttl.json"
+	defer os.Remove(filePath) // Supprimez le fichier après le test
+
+	globalTTL := 2 * time.Second
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
+	defer kvStore.Stop()
+
+	err := kvStore.Set("key_with_global_ttl", "value", 0)
+	if err != nil {
+		t.Fatalf("Failed to set key: %v", err)
+	}
+
+	time.Sleep(globalTTL + 1*time.Second)
+
+	_, err = kvStore.Get("key_with_global_ttl")
+	if err == nil {
+		t.Error("Expected key to be expired according to global TTL")
 	}
 }

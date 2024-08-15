@@ -12,7 +12,10 @@ func main() {
 	filePath := "data.json"
 	encryptionKey := []byte("encryptionKey")
 
-	kv := store.NewKeyValueStore(filePath, encryptionKey, 5*time.Second)
+	// Set a global TTL of 10 seconds.
+	globalTTL := 10 * time.Second
+
+	kv := store.NewKeyValueStore(filePath, encryptionKey, 5*time.Second, globalTTL)
 	defer kv.Stop()
 
 	err := kv.Set("key1", "value1", 0)

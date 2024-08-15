@@ -26,13 +26,14 @@ type KeyValueStore struct {
 	stopChan       chan struct{}
 	cleanupStopped chan struct{}
 	stopOnce       sync.Once
+	globalTTL      time.Duration
 
 	//Notification Manager
 	notificationManager *NotificationManager
 }
 
 // NewKeyValueStore creates a new KeyValueStore instance and loads data from file if it exists.
-func NewKeyValueStore(filePath string, encryptionKey []byte, tickerInterval time.Duration) *KeyValueStore {
+func NewKeyValueStore(filePath string, encryptionKey []byte, globalTTL time.Duration, tickerInterval time.Duration) *KeyValueStore {
 	kv := &KeyValueStore{
 		data:                make(map[string][]KeyValue),
 		expirations:         make(map[string]time.Time),
@@ -40,6 +41,7 @@ func NewKeyValueStore(filePath string, encryptionKey []byte, tickerInterval time
 		encryptionKey:       encryptionKey,
 		stopChan:            make(chan struct{}),
 		cleanupStopped:      make(chan struct{}),
+		globalTTL:           globalTTL,
 		notificationManager: NewNotificationManager(),
 	}
 
@@ -88,6 +90,8 @@ func (kv *KeyValueStore) Set(key, value string, expiration time.Duration) error 
 
 	if expiration > 0 {
 		kv.expirations[key] = now.Add(expiration)
+	} else if kv.globalTTL > 0 {
+		kv.expirations[key] = now.Add(kv.globalTTL)
 	} else {
 		delete(kv.expirations, key)
 	}
