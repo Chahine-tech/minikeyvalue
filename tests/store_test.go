@@ -30,7 +30,7 @@ func TestKeyValueStore(t *testing.T) {
 	encryptionKey := []byte("0123456789abcdef") // 16 bytes key for AES-128
 
 	// Ensure we clean up and persist data
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
 	// Set a global TTL of 10 seconds.
 	globalTTL := 10 * time.Second
@@ -73,7 +73,7 @@ func TestKeyValueStore(t *testing.T) {
 
 	// Clean up after test
 	kvStore.Stop()
-	os.Remove(filePath) // Supprimez le fichier après le test
+	os.Remove(filePath)
 }
 
 func TestCleanupExpiredItems(t *testing.T) {
@@ -134,7 +134,7 @@ func TestKeyValueStoreConcurrency(t *testing.T) {
 
 func TestCompareAndSwapConcurrency(t *testing.T) {
 	filePath := "test_store_cas_concurrency.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath) // Remove the file after test
 
 	// Set a global TTL of 10 seconds.
 	globalTTL := 10 * time.Second
@@ -171,7 +171,7 @@ func TestCompareAndSwapConcurrency(t *testing.T) {
 
 func TestCompressionAndEncryption(t *testing.T) {
 	filePath := "test_compression_encryption.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
 	// Set a global TTL of 10 seconds.
 	globalTTL := 10 * time.Second
@@ -208,7 +208,7 @@ func TestCompressionAndEncryption(t *testing.T) {
 
 func TestKeyValueStoreWithCompressionAndEncryption(t *testing.T) {
 	filePath := "test_store_compression_encryption.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
 	// Set a global TTL of 10 seconds.
 	globalTTL := 10 * time.Second
@@ -265,7 +265,7 @@ func TestKeyValueStoreWithCompressionAndEncryption(t *testing.T) {
 
 func TestLargeDataCompressionAndEncryption(t *testing.T) {
 	filePath := "test_large_data_compression_encryption.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
 	// Set a global TTL of 10 seconds.
 	globalTTL := 10 * time.Second
@@ -294,7 +294,7 @@ func TestLargeDataCompressionAndEncryption(t *testing.T) {
 
 func TestNonCompressibleData(t *testing.T) {
 	filePath := "test_non_compressible_data.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
 	// Set a global TTL of 10 seconds.
 	globalTTL := 10 * time.Second
@@ -320,7 +320,7 @@ func TestNonCompressibleData(t *testing.T) {
 
 func TestHighlyCompressibleData(t *testing.T) {
 	filePath := "test_highly_compressible_data.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
 	// Set a global TTL of 10 seconds.
 	globalTTL := 10 * time.Second
@@ -346,7 +346,7 @@ func TestHighlyCompressibleData(t *testing.T) {
 
 func TestNewDataFormat(t *testing.T) {
 	filePath := "test_new_data_format.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
 	// Create new data format
 	now := time.Now()
@@ -405,7 +405,7 @@ func saveNewFormat(filePath string, newData map[string][]store.KeyValue, encrypt
 
 func TestGetVersion(t *testing.T) {
 	filePath := "test_get_version.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
 	// Set a global TTL of 10 seconds.
 	globalTTL := 10 * time.Second
@@ -446,7 +446,7 @@ func TestGetVersion(t *testing.T) {
 
 func TestGetAllVersions(t *testing.T) {
 	filePath := "test_get_all_versions.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
 	// Set a global TTL of 10 seconds.
 	globalTTL := 10 * time.Second
@@ -482,7 +482,7 @@ func TestGetAllVersions(t *testing.T) {
 
 func TestGetHistory(t *testing.T) {
 	filePath := "test_get_history.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
 	// Set a global TTL of 10 seconds.
 	globalTTL := 10 * time.Second
@@ -519,7 +519,7 @@ func TestGetHistory(t *testing.T) {
 }
 func TestRemoveVersion(t *testing.T) {
 	filePath := "test_remove_version.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
 	// Set a global TTL of 10 seconds.
 	globalTTL := 10 * time.Second
@@ -608,9 +608,9 @@ func TestGetHistoryWithTimestamps(t *testing.T) {
 
 func TestKeyExpirationNotifications(t *testing.T) {
 	filePath := "test_key_expiration.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
-	// Définissez un TTL global de 10 secondes.
+	// Set a global TTL of 10 seconds.
 	globalTTL := 10 * time.Second
 	kvStore := store.NewKeyValueStore(filePath, encryptionKey, globalTTL, 1*time.Second)
 	defer kvStore.Stop()
@@ -627,13 +627,13 @@ func TestKeyExpirationNotifications(t *testing.T) {
 		}
 	})
 
-	// Définir la clé avec un expiration de 2 secondes
+	// Set the key with a 2 second expiry time
 	err := kvStore.Set("temp-key", "temp-value", 2*time.Second)
 	if err != nil {
 		t.Fatalf("Failed to set a key: %v", err)
 	}
 
-	// Attendez assez de temps pour que l'expiration et la notification se produisent.
+	// Wait long enough for expiration and notification to occur.
 	select {
 	case <-done:
 		if len(notifications) != 1 || notifications[0] != "temp-key" {
@@ -646,7 +646,7 @@ func TestKeyExpirationNotifications(t *testing.T) {
 
 func TestMultipleNotifications(t *testing.T) {
 	filePath := "test_multiple_notifications.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
 	// Set a global TTL of 10 seconds.
 	globalTTL := 10 * time.Second
@@ -701,7 +701,7 @@ func TestMultipleNotifications(t *testing.T) {
 
 func TestGlobalTTL(t *testing.T) {
 	const filePath = "test_global_ttl.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
 	globalTTL := 2 * time.Second
 	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
@@ -827,7 +827,7 @@ func TestDeleteConcurrency(t *testing.T) {
 
 func TestLazyLoading(t *testing.T) {
 	filePath := "test_lazy_loading.json"
-	defer os.Remove(filePath) // Supprimez le fichier après le test
+	defer os.Remove(filePath)
 
 	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 2*time.Minute, 1*time.Second)
 	defer kvStore.Stop()

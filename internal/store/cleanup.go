@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// cleanupExpiredItems est une goroutine en arrière-plan qui vérifie périodiquement les éléments expirés et les supprime du magasin.
+// cleanupExpiredItems is a background goroutine that periodically checks for expired items and removes them from the store.
 func (kv *KeyValueStore) cleanupExpiredItems(tickerInterval time.Duration) {
 	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
@@ -19,7 +19,7 @@ func (kv *KeyValueStore) cleanupExpiredItems(tickerInterval time.Duration) {
 				if now.After(exp) {
 					delete(kv.data, key)
 					delete(kv.expirations, key)
-					kv.notificationManager.Notify(fmt.Sprintf("expired:%s", key)) // Envoyer une notification d'expiration
+					kv.notificationManager.Notify(fmt.Sprintf("expired:%s", key)) // Send expiry notification
 				}
 			}
 			kv.Unlock()

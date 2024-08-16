@@ -46,35 +46,35 @@ func (nm *NotificationManager) UnregisterListener(listener func(string)) {
 	}
 }
 
-// Notify informe tous les écouteurs enregistrés d'un événement.
+// Notify informs all registered listeners of an event.
 func (nm *NotificationManager) Notify(event string) {
 	log.Printf("Notifying listeners: %s", event)
 	nm.ch <- event
 }
 
-// NotifyAdd informe tous les écouteurs enregistrés de l'ajout d'une clé.
+// NotifyAdd informs all registered listeners that a key has been added.
 func (nm *NotificationManager) NotifyAdd(key string) {
 	nm.Notify(fmt.Sprintf("added:%s", key))
 }
 
-// NotifyUpdate informe tous les écouteurs enregistrés de la mise à jour d'une clé.
+// NotifyUpdate informs all registered headphones when a key is updated.
 func (nm *NotificationManager) NotifyUpdate(key string) {
 	nm.Notify(fmt.Sprintf("updated:%s", key))
 }
 
-// NotifyDelete informe tous les écouteurs enregistrés de la suppression d'une clé.
+// NotifyDelete informs all registered listeners that a key has been deleted.
 func (nm *NotificationManager) NotifyDelete(key string) {
 	nm.Notify(fmt.Sprintf("deleted:%s", key))
 }
 
-// listen écoute les événements et informe les écouteurs.
+// listen listens to events and informs listeners.
 func (nm *NotificationManager) listen() {
 	for {
 		select {
 		case event := <-nm.ch:
 			nm.mu.Lock()
 			for _, listener := range nm.listeners {
-				// Retirer les goroutines pour garantir l'ordre des notifications
+				// Remove goroutines to guarantee notification order
 				listener(event)
 			}
 			nm.mu.Unlock()
@@ -84,7 +84,7 @@ func (nm *NotificationManager) listen() {
 	}
 }
 
-// Stop arrête le gestionnaire de notification.
+// Stop stops the notification manager.
 func (nm *NotificationManager) Stop() {
 	close(nm.stopChan)
 	nm.wg.Wait()
