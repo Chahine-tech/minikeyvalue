@@ -863,3 +863,53 @@ func TestLazyLoading(t *testing.T) {
 		t.Fatalf("Data should be loaded after a Set operation")
 	}
 }
+
+func TestKeyRotation(t *testing.T) {
+	filePath := "test_key_rotation.json"
+	defer os.Remove(filePath)
+
+	originalKey := []byte("originalkey01234")
+	newKey := []byte("newkey0123456789")
+
+	// Create store with original key
+	kvStore := store.NewKeyValueStore(filePath, originalKey, 2*time.Minute, 1*time.Second)
+
+	// Set a key
+	err := kvStore.Set("key1", "value1", 0)
+	if err != nil {
+		t.Fatalf("Failed to set key: %v", err)
+	}
+
+	// Rotate key
+	err = kvStore.RotateEncryptionKey(newKey)
+	if err != nil {
+		t.Fatalf("Failed to rotate encryption key: %v", err)
+	}
+
+	// Get key with new encryption
+	value, err := kvStore.Get("key1")
+	if err != nil {
+		t.Fatalf("Failed to get key after rotation: %v", err)
+	}
+	if value != "value1" {
+		t.Errorf("Expected value 'value1', got '%v'", value)
+	}
+
+	// Stop the store
+	kvStore.Stop()
+
+	// Create a new store with the new key
+	newStore := store.NewKeyValueStore(filePath, newKey, 2*time.Minute, 1*time.Second)
+
+	// Try to get the key
+	value, err = newStore.Get("key1")
+	if err != nil {
+		t.Fatalf("Failed to get key after restart: %v", err)
+	}
+	if value != "value1" {
+		t.Errorf("Expected value 'value1' after restart, got '%v'", value)
+	}
+
+	// Stop the new store
+	newStore.Stop()
+}
