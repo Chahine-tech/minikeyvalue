@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"compress/zlib"
 	"io"
+	"log"
 )
 
 // CompressData compresses the given data using the zlib compression algorithm.
 func CompressData(data []byte) ([]byte, error) {
+	log.Println("CompressData: Entered function")
 	var b bytes.Buffer
 	w := zlib.NewWriter(&b)
 	_, err := w.Write(data)

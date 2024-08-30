@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -276,17 +277,22 @@ func (kv *KeyValueStore) save() error {
 		return fmt.Errorf("error compressing data: %v", err)
 	}
 
+	var dataToWrite string
 	if len(kv.encryptionKey) > 0 {
+		log.Println("save: Encrypting data")
 		encryptedData, err := EncryptData(compressedData, kv.encryptionKey)
 		if err != nil {
 			return fmt.Errorf("error encrypting data: %v", err)
 		}
-		data = []byte(encryptedData)
+		// Base64 encode the encrypted data before writing to file
+		dataToWrite = base64.StdEncoding.EncodeToString(encryptedData)
 	} else {
-		data = compressedData
+		// Encode compressed data to Base64
+		dataToWrite = base64.StdEncoding.EncodeToString(compressedData)
 	}
 
-	if err := os.WriteFile(kv.filePath, data, 0644); err != nil {
+	// Save the data (Base64 encoded)
+	if err := os.WriteFile(kv.filePath, []byte(dataToWrite), 0644); err != nil {
 		return fmt.Errorf("error writing file: %v", err)
 	}
 	log.Println("Save: Released RLock")
@@ -313,14 +319,21 @@ func (kv *KeyValueStore) load() error {
 		return fmt.Errorf("error reading file: %v", err)
 	}
 
+	// Decode Base64
+	decodedData, err := base64.StdEncoding.DecodeString(string(data))
+	if err != nil {
+		return fmt.Errorf("error decoding base64: %v", err)
+	}
+
 	if len(kv.encryptionKey) > 0 {
-		data, err = DecryptData(string(data), kv.encryptionKey)
+		// Decrypt the data
+		decodedData, err = DecryptData(decodedData, kv.encryptionKey)
 		if err != nil {
 			return fmt.Errorf("error decrypting data: %v", err)
 		}
 	}
 
-	decompressedData, err := DecompressData(data)
+	decompressedData, err := DecompressData(decodedData)
 	if err != nil {
 		return fmt.Errorf("error decompressing data: %v", err)
 	}
@@ -328,22 +341,29 @@ func (kv *KeyValueStore) load() error {
 	if err := json.Unmarshal(decompressedData, &kv.data); err != nil {
 		return fmt.Errorf("error unmarshalling data: %v", err)
 	}
-	log.Println("load: Data loaded successfully")
+
 	kv.loaded = true
+	log.Println("load: Data loaded successfully")
 	return nil
 }
 
 // Ensure data is loaded lazily
 func (kv *KeyValueStore) ensureLoaded() error {
-	kv.Lock()
-	defer kv.Unlock()
+	kv.RLock()
+	loaded := kv.loaded
+	kv.RUnlock()
+	if !loaded {
+		kv.Lock()
+		defer kv.Unlock()
 
-	if !kv.loaded {
-		log.Println("ensureLoaded: Triggering load")
-		if err := kv.load(); err != nil {
-			return fmt.Errorf("failed to load data: %v", err)
+		// Double-check to make sure another goroutine didn't load the data
+		if !kv.loaded {
+			log.Println("ensureLoaded: Triggering load")
+			if err := kv.load(); err != nil {
+				return fmt.Errorf("failed to load data: %v", err)
+			}
+			log.Println("ensureLoaded: Data loaded")
 		}
-		log.Println("ensureLoaded: Data loaded")
 	}
 	return nil
 }
