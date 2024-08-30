@@ -873,18 +873,21 @@ func TestKeyRotation(t *testing.T) {
 
 	// Create store with original key
 	kvStore := store.NewKeyValueStore(filePath, originalKey, 2*time.Minute, 1*time.Second)
+	log.Println("Store created with original key")
 
 	// Set a key
 	err := kvStore.Set("key1", "value1", 0)
 	if err != nil {
 		t.Fatalf("Failed to set key: %v", err)
 	}
+	log.Println("Key set: key1 -> value1")
 
 	// Rotate key
 	err = kvStore.RotateEncryptionKey(newKey)
 	if err != nil {
 		t.Fatalf("Failed to rotate encryption key: %v", err)
 	}
+	log.Println("Key rotated successfully")
 
 	// Get key with new encryption
 	value, err := kvStore.Get("key1")
@@ -894,12 +897,15 @@ func TestKeyRotation(t *testing.T) {
 	if value != "value1" {
 		t.Errorf("Expected value 'value1', got '%v'", value)
 	}
+	log.Println("Key retrieved after rotation: key1 ->", value)
 
 	// Stop the store
 	kvStore.Stop()
+	log.Println("Store stopped successfully")
 
 	// Create a new store with the new key
 	newStore := store.NewKeyValueStore(filePath, newKey, 2*time.Minute, 1*time.Second)
+	log.Println("New store created with new key")
 
 	// Try to get the key
 	value, err = newStore.Get("key1")
@@ -909,7 +915,9 @@ func TestKeyRotation(t *testing.T) {
 	if value != "value1" {
 		t.Errorf("Expected value 'value1' after restart, got '%v'", value)
 	}
+	log.Println("Key retrieved after restart: key1 ->", value)
 
 	// Stop the new store
 	newStore.Stop()
+	log.Println("New store stopped successfully")
 }
