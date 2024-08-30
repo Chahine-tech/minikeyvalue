@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -364,7 +365,7 @@ func TestNewDataFormat(t *testing.T) {
 	globalTTL := 10 * time.Second
 
 	// Initialize new KeyValueStore
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, globalTTL, 1*time.Second)
 	defer kvStore.Stop()
 
 	// Test if new data is readable
@@ -395,9 +396,11 @@ func saveNewFormat(filePath string, newData map[string][]store.KeyValue, encrypt
 		if err != nil {
 			return fmt.Errorf("error encrypting data: %v", err)
 		}
-		data = []byte(encryptedData)
+		// Encode the encrypted data to Base64
+		data = []byte(base64.StdEncoding.EncodeToString(encryptedData))
 	} else {
-		data = compressedData
+		// Encode the compressed data to Base64 if not encrypted
+		data = []byte(base64.StdEncoding.EncodeToString(compressedData))
 	}
 
 	return os.WriteFile(filePath, data, 0644)
