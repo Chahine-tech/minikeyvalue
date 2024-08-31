@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -364,7 +365,7 @@ func TestNewDataFormat(t *testing.T) {
 	globalTTL := 10 * time.Second
 
 	// Initialize new KeyValueStore
-	kvStore := store.NewKeyValueStore(filePath, encryptionKey, 1*time.Second, globalTTL)
+	kvStore := store.NewKeyValueStore(filePath, encryptionKey, globalTTL, 1*time.Second)
 	defer kvStore.Stop()
 
 	// Test if new data is readable
@@ -395,9 +396,11 @@ func saveNewFormat(filePath string, newData map[string][]store.KeyValue, encrypt
 		if err != nil {
 			return fmt.Errorf("error encrypting data: %v", err)
 		}
-		data = []byte(encryptedData)
+		// Encode the encrypted data to Base64
+		data = []byte(base64.StdEncoding.EncodeToString(encryptedData))
 	} else {
-		data = compressedData
+		// Encode the compressed data to Base64 if not encrypted
+		data = []byte(base64.StdEncoding.EncodeToString(compressedData))
 	}
 
 	return os.WriteFile(filePath, data, 0644)
@@ -862,4 +865,99 @@ func TestLazyLoading(t *testing.T) {
 	if !kvStore.Loaded() {
 		t.Fatalf("Data should be loaded after a Set operation")
 	}
+}
+
+func TestKeyRotation(t *testing.T) {
+	filePath := "test_key_rotation.json"
+	defer os.Remove(filePath)
+
+	originalKey := []byte("originalkey01234")
+	newKey := []byte("newkey0123456789")
+
+	// Create store with original key
+	kvStore := store.NewKeyValueStore(filePath, originalKey, 2*time.Minute, 1*time.Second)
+	log.Println("Store created with original key")
+
+	// Set a key
+	err := kvStore.Set("key1", "value1", 0)
+	if err != nil {
+		t.Fatalf("Failed to set key: %v", err)
+	}
+	log.Println("Key set: key1 -> value1")
+
+	// Rotate key
+	err = kvStore.RotateEncryptionKey(newKey)
+	if err != nil {
+		t.Fatalf("Failed to rotate encryption key: %v", err)
+	}
+	log.Println("Key rotated successfully")
+
+	// Get key with new encryption
+	value, err := kvStore.Get("key1")
+	if err != nil {
+		t.Fatalf("Failed to get key after rotation: %v", err)
+	}
+	if value != "value1" {
+		t.Errorf("Expected value 'value1', got '%v'", value)
+	}
+	log.Println("Key retrieved after rotation: key1 ->", value)
+
+	// Stop the store
+	kvStore.Stop()
+	log.Println("Store stopped successfully")
+
+	// Create a new store with the new key
+	newStore := store.NewKeyValueStore(filePath, newKey, 2*time.Minute, 1*time.Second)
+	log.Println("New store created with new key")
+
+	// Try to get the key
+	value, err = newStore.Get("key1")
+	if err != nil {
+		t.Fatalf("Failed to get key after restart: %v", err)
+	}
+	if value != "value1" {
+		t.Errorf("Expected value 'value1' after restart, got '%v'", value)
+	}
+	log.Println("Key retrieved after restart: key1 ->", value)
+
+	// Stop the new store
+	newStore.Stop()
+	log.Println("New store stopped successfully")
+}
+
+func TestKeyRotationWithIncorrectOldKey(t *testing.T) {
+	filePath := "test_incorrect_old_key.json"
+	defer os.Remove(filePath)
+
+	originalKey := []byte("originalkey01234")
+	newKey := []byte("newkey0123456789")
+
+	// Create store with original key and set data
+	kvStore := store.NewKeyValueStore(filePath, originalKey, 2*time.Minute, 1*time.Second)
+	err := kvStore.Set("key1", "value1", 0)
+	if err != nil {
+		t.Fatalf("Failed to set key: %v", err)
+	}
+	kvStore.Stop()
+
+	// Debugging: Verify data was encrypted with the correct key
+	initialData, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("Failed to read file: %v", err)
+	}
+	fmt.Printf("Initial encrypted data: %x\n", initialData)
+
+	// Re-open store using the filePath to load potential existing key
+	kvStore = store.NewKeyValueStore(filePath, nil, 2*time.Minute, 1*time.Second)
+
+	// Now attempt key rotation - this should fail
+	err = kvStore.RotateEncryptionKey(newKey)
+	if err == nil {
+		t.Fatalf("Expected error when rotating encryption key with incorrect old key, got none")
+	}
+	if !strings.Contains(err.Error(), "failed to decrypt data with old key") {
+		t.Fatalf("Expected error message to contain 'failed to decrypt data with old key', got: %v", err)
+	}
+
+	kvStore.Stop()
 }
