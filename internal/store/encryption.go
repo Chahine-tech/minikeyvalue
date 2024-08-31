@@ -82,14 +82,13 @@ func (kv *KeyValueStore) RotateEncryptionKey(newEncryptionKey []byte) error {
 
 	oldEncryptionKey := kv.encryptionKey
 
-	log.Println("RotateEncryptionKey: Decrypting data with old key")
 	fmt.Printf("Old key: %x\n", oldEncryptionKey)
 	decryptedData, err := DecryptData(data, oldEncryptionKey)
 	if err != nil {
 		log.Println("Failed to decrypt data with old key:", err)
 		return fmt.Errorf("failed to decrypt data with old key: %v", err)
 	}
-	log.Println("Data decrypted with old key.")
+
 	fmt.Printf("Decrypted data before re-encrypting: %s\n", decryptedData)
 
 	kv.encryptionKey = newEncryptionKey
@@ -106,7 +105,6 @@ func (kv *KeyValueStore) RotateEncryptionKey(newEncryptionKey []byte) error {
 	// Base64 encode the encrypted data
 	encodedData := base64.StdEncoding.EncodeToString(encryptedData)
 
-	log.Println("RotateEncryptionKey: Loading encrypted data into KeyValueStore")
 	// Load the encoded data - loadFromBytes handles decryption
 	if err := kv.loadFromBytes([]byte(encodedData)); err != nil {
 		log.Println("Failed to load data with new encryption:", err)
