@@ -924,3 +924,41 @@ func TestKeyRotation(t *testing.T) {
 	newStore.Stop()
 	log.Println("New store stopped successfully")
 }
+
+func TestKeyRotationWithIncorrectOldKey(t *testing.T) {
+	filePath := "test_incorrect_old_key.json"
+	defer os.Remove(filePath)
+
+	originalKey := []byte("originalkey01234")
+	newKey := []byte("newkey0123456789")
+	// NOTE: We don't need incorrectOldKey here
+
+	// Create store with original key and set data
+	kvStore := store.NewKeyValueStore(filePath, originalKey, 2*time.Minute, 1*time.Second)
+	err := kvStore.Set("key1", "value1", 0)
+	if err != nil {
+		t.Fatalf("Failed to set key: %v", err)
+	}
+	kvStore.Stop()
+
+	// Debugging: Verify data was encrypted with the correct key
+	initialData, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("Failed to read file: %v", err)
+	}
+	fmt.Printf("Initial encrypted data: %x\n", initialData)
+
+	// Re-open store using the filePath to load potential existing key
+	kvStore = store.NewKeyValueStore(filePath, nil, 2*time.Minute, 1*time.Second)
+
+	// Now attempt key rotation - this should fail
+	err = kvStore.RotateEncryptionKey(newKey)
+	if err == nil {
+		t.Fatalf("Expected error when rotating encryption key with incorrect old key, got none")
+	}
+	if !strings.Contains(err.Error(), "failed to decrypt data with old key") {
+		t.Fatalf("Expected error message to contain 'failed to decrypt data with old key', got: %v", err)
+	}
+
+	kvStore.Stop()
+}
