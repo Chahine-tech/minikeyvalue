@@ -931,7 +931,6 @@ func TestKeyRotationWithIncorrectOldKey(t *testing.T) {
 
 	originalKey := []byte("originalkey01234")
 	newKey := []byte("newkey0123456789")
-	// NOTE: We don't need incorrectOldKey here
 
 	// Create store with original key and set data
 	kvStore := store.NewKeyValueStore(filePath, originalKey, 2*time.Minute, 1*time.Second)

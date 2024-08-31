@@ -14,7 +14,6 @@ import (
 
 // EncryptData encrypts the given data using the provided key.
 func EncryptData(data []byte, key []byte) ([]byte, error) {
-	log.Println("EncryptData: Entered function")
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		log.Println("EncryptData: Error creating new cipher:", err)
@@ -44,8 +43,6 @@ func EncryptData(data []byte, key []byte) ([]byte, error) {
 
 // DecryptData decrypts the given encrypted data using the provided key.
 func DecryptData(encryptedData []byte, key []byte) ([]byte, error) {
-	log.Println("DecryptData: Entered function")
-
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		log.Println("DecryptData: Error creating new cipher:", err)
@@ -77,16 +74,11 @@ func DecryptData(encryptedData []byte, key []byte) ([]byte, error) {
 
 // RotateEncryptionKey rotates the encryption key for the KeyValueStore.
 func (kv *KeyValueStore) RotateEncryptionKey(newEncryptionKey []byte) error {
-	log.Println("Starting key rotation...")
-
-	log.Println("RotateEncryptionKey: Saving current data to bytes")
 	data, err := kv.saveToBytes()
 	if err != nil {
 		log.Println("Failed to save current data:", err)
 		return fmt.Errorf("failed to save current data: %v", err)
 	}
-	log.Println("Current data saved successfully.")
-	fmt.Printf("Data bytes before decrypting: %x\n", data)
 
 	oldEncryptionKey := kv.encryptionKey
 
@@ -103,14 +95,12 @@ func (kv *KeyValueStore) RotateEncryptionKey(newEncryptionKey []byte) error {
 	kv.encryptionKey = newEncryptionKey
 
 	log.Println("RotateEncryptionKey: Encrypting data with new key")
-	fmt.Printf("New key: %x\n", kv.encryptionKey)
 	encryptedData, err := EncryptData(decryptedData, kv.encryptionKey)
 	if err != nil {
 		log.Println("Failed to encrypt data with new key:", err)
 		kv.encryptionKey = oldEncryptionKey
 		return fmt.Errorf("failed to encrypt data with new key: %v", err)
 	}
-	log.Println("Data encrypted with new key.")
 	fmt.Printf("Data bytes after encrypting with new key: %x\n", encryptedData)
 
 	// Base64 encode the encrypted data
@@ -142,14 +132,12 @@ func (kv *KeyValueStore) saveToBytes() ([]byte, error) {
 	kv.RLock()
 	defer kv.RUnlock()
 
-	log.Println("saveToBytes: Marshal data")
 	data, err := json.Marshal(kv.data)
 	if err != nil {
 		log.Println("saveToBytes: Error marshalling data:", err)
 		return nil, fmt.Errorf("error marshalling data: %v", err)
 	}
 
-	log.Println("saveToBytes: Compressing data")
 	compressedData, err := CompressData(data)
 	if err != nil {
 		log.Println("saveToBytes: Error compressing data:", err)
@@ -172,26 +160,22 @@ func (kv *KeyValueStore) saveToBytes() ([]byte, error) {
 
 // loadFromBytes loads the data from a byte slice into the in-memory data structure.
 func (kv *KeyValueStore) loadFromBytes(data []byte) error {
-	log.Println("loadFromBytes: Entered function")
 
 	// Decode Base64 before decompress
 	decodedData, err := base64.StdEncoding.DecodeString(string(data))
 	if err != nil {
-		log.Println("loadFromBytes: Error decoding Base64:", err)
+
 		return fmt.Errorf("error decoding base64: %v", err)
 	}
 
-	log.Println("loadFromBytes: Decrypting data")
 	decryptedData, err := DecryptData(decodedData, kv.encryptionKey)
 	if err != nil {
-		log.Println("loadFromBytes: Error decrypting data:", err)
+
 		return fmt.Errorf("error decrypting data: %v", err)
 	}
 
-	log.Println("loadFromBytes: Decompressing data")
 	decompressedData, err := DecompressData(decryptedData)
 	if err != nil {
-		log.Println("loadFromBytes: Error decompressing data:", err)
 		return fmt.Errorf("error decompressing data: %v", err)
 	}
 
@@ -199,7 +183,6 @@ func (kv *KeyValueStore) loadFromBytes(data []byte) error {
 	kv.Lock()
 	defer kv.Unlock()
 
-	log.Println("loadFromBytes: Unmarshalling data")
 	if err := json.Unmarshal(decompressedData, &kv.data); err != nil {
 		log.Println("loadFromBytes: Error unmarshalling data:", err)
 		return fmt.Errorf("error unmarshalling data: %v", err)
