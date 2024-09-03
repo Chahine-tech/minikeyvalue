@@ -2,8 +2,10 @@ package main
 
 import (
 	"log"
+	"os"
 	"time"
 
+	"github.com/Chahine-tech/minikeyvalue/internal/api"
 	"github.com/Chahine-tech/minikeyvalue/internal/store"
 )
 
@@ -30,4 +32,12 @@ func main() {
 	log.Printf("Retrieved value: %v\n", value)
 
 	time.Sleep(5 * time.Second)
+
+
+ // Set a default API key (insecure, don't do this in production)
+    os.Setenv("API_KEY", "default_api_key")
+
+    // Start the API server
+    log.Println("Starting API server...")
+    api.StartServer()
 }
